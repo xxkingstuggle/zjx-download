@@ -34,10 +34,31 @@ swift test
 swift run ABDownloadManager
 ```
 
-`swift run` starts the native executable in a GUI session. To make a signed
-`.app`, open the package in Xcode, select the `ABDownloadManager` executable
-product, set the signing team, and archive it. This repository does not claim
-signing, notarization, or release publication.
+`swift run` starts the native executable in a GUI session. A Release app can be
+built from the Xcode project with:
+
+```sh
+xcodebuild -project ABDownloadManager.xcodeproj \
+  -scheme ABDownloadManager \
+  -configuration Release \
+  -destination 'platform=macOS' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+The repository's [release workflow](.github/workflows/release.yml) builds an
+arm64 Release app on a GitHub macOS runner, signs it ad-hoc, verifies the
+signature, and packages `AB-Download-Manager-macOS.zip`. It runs manually with
+`workflow_dispatch` and automatically for tags matching `v*`.
+
+### 安装
+
+当前项目没有 Apple Developer ID，也没有 Apple notarization。GitHub 下载
+版本第一次启动时，macOS 可能会阻止运行。第一次尝试打开后，进入：
+
+系统设置 → 隐私与安全性 → 仍要打开
+
+之后即可正常双击启动。不要关闭 Gatekeeper，也不要使用
+`sudo spctl --master-disable`。
 
 ## Data and safety
 
