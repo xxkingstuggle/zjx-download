@@ -7,7 +7,7 @@ import ABDownloadManagerCore
 
 
 struct OpenDownloadsIntent: AppIntent {
-    static let title: LocalizedStringResource = "Open Downloads"
+    static let title: LocalizedStringResource = "app.openDownloads"
     static let openAppWhenRun = true
     func perform() async throws -> some IntentResult { .result() }
 }
@@ -17,13 +17,17 @@ struct ABDownloadManagerApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        WindowGroup("AB Download Manager") { MainWindow(model: model) }
-            .defaultSize(width: 1180, height: 760)
+        WindowGroup { MainWindow(model: model).environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+            .environment(\.appLanguage, model.settings.language ?? "zh-Hans") }
+            .defaultSize(width: 1100, height: 720)
             .commands { AppCommands(model: model) }
-        MenuBarExtra("AB Download Manager", systemImage: "arrow.down.circle") {
+        MenuBarExtra(LocalizedStringKey("app.title"), systemImage: "arrow.down.circle") {
             MenuBarView(model: model)
+                .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+                .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
         }
-        Settings { SettingsView(model: model) }
+        Settings { SettingsView(model: model).environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+            .environment(\.appLanguage, model.settings.language ?? "zh-Hans") }
     }
 }
 
@@ -91,8 +95,13 @@ final class AppModel: ObservableObject {
 
     func bootstrap() async {
         guard let store else { return }
-        let snapshot = await store.snapshot()
+        var snapshot = await store.snapshot()
+        if snapshot.settings.language == nil {
+            snapshot.settings.language = "zh-Hans"
+            try? await store.setSettings(snapshot.settings)
+        }
         settings = snapshot.settings; tasks = snapshot.tasks; queues = snapshot.queues; history = snapshot.history; categories = snapshot.categories; hostOverrides = snapshot.hostOverrides
+        AppLocalization.defaultLanguageCode = snapshot.settings.language ?? "zh-Hans"
         if settings.clipboardMonitoring { clipboardMonitor?.start() } else { clipboardMonitor?.stop() }
         if settings.integration.enabled {
             do {
@@ -128,7 +137,7 @@ final class AppModel: ObservableObject {
             guard task.status == .completed || task.status == .failed, notifiedStatuses[task.id] != task.status else { continue }
             notifiedStatuses[task.id] = task.status
             let content = UNMutableNotificationContent()
-            content.title = task.status == .completed ? "Download complete" : "Download failed"
+            content.title = task.status == .completed ? AppLocalization.string("notification.complete") : AppLocalization.string("notification.failed")
             content.body = task.fileName
             if settings.notifications.soundEnabled { content.sound = .default }
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "download-\(task.id)-\(task.status.rawValue)", content: content, trigger: nil))
@@ -188,8 +197,8 @@ final class AppModel: ObservableObject {
     func cancel(_ task: DownloadTask) async { do { try await engine?.cancel(taskID: task.id); await refresh() } catch { lastError = error.localizedDescription } }
     func retry(_ task: DownloadTask) async { do { try await engine?.retry(taskID: task.id); await refresh() } catch { lastError = error.localizedDescription } }
     func editTask(_ task: DownloadTask, fileName: String, folder: String, urlText: String, queueID: Int64?, categoryID: Int64?, headers: [String: String], checksum: String?, speedLimit: Int64) async {
-        guard let store, task.canEdit else { lastError = "This task cannot be edited while running."; return }
-        guard let url = URL(string: urlText), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { lastError = "A stopped task requires a valid HTTP(S) URL."; return }
+        guard let store, task.canEdit else { lastError = AppLocalization.string("error.taskNotEditable"); return }
+        guard let url = URL(string: urlText), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { lastError = AppLocalization.string("error.invalidTaskURL"); return }
         do {
             let safeName = try FileUtilities.sanitizedFileName(fileName)
             var updated = task; updated.fileName = safeName; updated.folderPath = folder; updated.queueID = queueID; updated.categoryID = categoryID
@@ -206,6 +215,7 @@ final class AppModel: ObservableObject {
         guard let store else { return }
         do {
             var value = settings; value.normalize(); try await store.setSettings(value)
+            AppLocalization.defaultLanguageCode = value.language ?? "zh-Hans"
             if #available(macOS 13.0, *) {
                 do {
                     if value.autoStartOnBoot { try SMAppService.mainApp.register() } else { try await SMAppService.mainApp.unregister() }
@@ -226,69 +236,182 @@ final class AppModel: ObservableObject {
     }
 }
 
+
+/// Environment value carrying the language selected in Settings so views can
+/// resolve localized strings for the *chosen* language instead of the system
+/// language. `NSLocalizedString` always consults the system preference, which
+/// would desynchronise counters and alerts from the SwiftUI `.locale`.
+private struct AppLanguageKey: EnvironmentKey { static let defaultValue = "zh-Hans" }
+
+extension EnvironmentValues {
+    var appLanguage: String { get { self[AppLanguageKey.self] } set { self[AppLanguageKey.self] = newValue } }
+}
+
+/// Resolves `.strings` entries for an explicit language, looking inside the app
+/// bundle and inside SwiftPM resource bundles so both `xcodebuild` and
+/// `swift run` layouts work.
+@MainActor
+enum AppLocalization {
+    static var defaultLanguageCode = "zh-Hans"
+
+    static func bundle(for identifier: String) -> Bundle {
+        var candidates: [Bundle] = [.main]
+        if let resourceURL = Bundle.main.resourceURL,
+           let entries = try? FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil) {
+            candidates.append(contentsOf: entries.filter { $0.pathExtension == "bundle" }.compactMap { Bundle(url: $0) })
+        }
+        for candidate in candidates {
+            if let path = candidate.path(forResource: identifier, ofType: "lproj"), let localized = Bundle(path: path) {
+                return localized
+            }
+        }
+        return .main
+    }
+
+    static func string(_ key: String, language: String? = nil) -> String {
+        bundle(for: language ?? defaultLanguageCode).localizedString(forKey: key, value: nil, table: nil)
+    }
+
+    static func format(_ key: String, language: String? = nil, _ arguments: CVarArg...) -> String {
+        String(format: string(key, language: language), arguments: arguments)
+    }
+}
+
+private func statusKey(_ status: DownloadStatus) -> LocalizedStringKey {
+    switch status {
+    case .created: "status.created"
+    case .downloading: "status.downloading"
+    case .paused: "status.paused"
+    case .completed: "status.completed"
+    case .failed: "status.failed"
+    case .stopped: "status.stopped"
+    case .cancelled: "status.cancelled"
+    case .merging: "status.merging"
+    }
+}
+
+private func conflictKey(_ value: FileConflictPolicy) -> LocalizedStringKey {
+    switch value { case .rename: "conflict.rename"; case .overwrite: "conflict.overwrite"; case .skip: "conflict.skip" }
+}
+
+private func themeKey(_ value: ThemeMode) -> LocalizedStringKey {
+    switch value { case .system: "theme.system"; case .light: "theme.light"; case .dark: "theme.dark" }
+}
+
+private func proxyKey(_ value: ProxySettings.Mode) -> LocalizedStringKey {
+    switch value { case .none: "proxy.none"; case .system: "proxy.system"; case .manual: "proxy.manual" }
+}
+
+private func updateKey(_ value: UpdateChannel) -> LocalizedStringKey {
+    switch value { case .disabled: "update.disabled"; case .stable: "update.stable" }
+}
+
+private func completionActionKey(_ value: QueueCompletionAction) -> LocalizedStringKey {
+    switch value { case .none: "queue.action.none"; case .quitApplication: "queue.action.quitApplication"; case .sleepComputer: "queue.action.sleepComputer"; case .shutDownComputer: "queue.action.shutDownComputer" }
+}
+
+private func weekdayKey(_ value: QueueSchedule.Weekday) -> LocalizedStringKey {
+    switch value { case .sunday: "queue.weekday.sunday"; case .monday: "queue.weekday.monday"; case .tuesday: "queue.weekday.tuesday"; case .wednesday: "queue.weekday.wednesday"; case .thursday: "queue.weekday.thursday"; case .friday: "queue.weekday.friday"; case .saturday: "queue.weekday.saturday" }
+}
+
 enum SidebarSection: String, CaseIterable, Identifiable { case downloads, queues, categories, history, settings; var id: String { rawValue }; var title: String { rawValue.capitalized }; var icon: String { switch self { case .downloads: "arrow.down.circle"; case .queues: "list.number"; case .categories: "square.grid.2x2"; case .history: "clock"; case .settings: "gear" } } }
 
 struct MainWindow: View {
     @ObservedObject var model: AppModel
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var showingChecksum = false
     var body: some View {
         NavigationSplitView {
             List(selection: $model.section) {
-                Section("Library") {
-                    ForEach([SidebarSection.downloads, .queues, .categories, .history]) { section in Label(LocalizedStringKey("\(section.rawValue).title"), systemImage: section.icon).tag(section) }
+                Section(LocalizedStringKey("sidebar.library")) {
+                    Label(LocalizedStringKey("downloads.title"), systemImage: SidebarSection.downloads.icon).tag(SidebarSection.downloads)
+                    Label(LocalizedStringKey("queues.title"), systemImage: SidebarSection.queues.icon).tag(SidebarSection.queues)
+                    Label(LocalizedStringKey("categories.title"), systemImage: SidebarSection.categories.icon).tag(SidebarSection.categories)
+                    Label(LocalizedStringKey("history.title"), systemImage: SidebarSection.history.icon).tag(SidebarSection.history)
                 }
-                Section("Application") { Label(LocalizedStringKey("settings.title"), systemImage: SidebarSection.settings.icon).tag(SidebarSection.settings) }
+                Section(LocalizedStringKey("sidebar.application")) {
+                    Label(LocalizedStringKey("settings.title"), systemImage: SidebarSection.settings.icon).tag(SidebarSection.settings)
+                }
             }
-            .navigationTitle("AB Download Manager")
+            .listStyle(.sidebar)
+            .navigationTitle(LocalizedStringKey("app.title"))
+            .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
             .safeAreaInset(edge: .bottom) { SidebarStatus(model: model) }
-        } content: {
+        } detail: {
             switch model.section {
-            case .downloads: DownloadList(model: model)
+            case .downloads:
+                if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) {
+                    HSplitView {
+                        DownloadList(model: model).frame(minWidth: 340, idealWidth: 560)
+                        TaskInspector(model: model, task: task, progress: model.progress[id]).frame(minWidth: 360, idealWidth: 420)
+                    }
+                } else {
+                    DownloadList(model: model)
+                }
             case .queues: QueueList(model: model)
             case .categories: CategoriesView(model: model)
             case .history: HistoryList(model: model)
             case .settings: SettingsView(model: model)
             }
-        } detail: {
-            if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { TaskInspector(model: model, task: task, progress: model.progress[id]) }
-            else { ContentUnavailableView("Select a Download", systemImage: "arrow.down.circle", description: Text("Choose an item to inspect its status and destination.")) }
         }
-        .toolbar { ToolbarItemGroup { Button { model.isShowingNewDownload = true } label: { Label("New Download", systemImage: "plus") }; Button { showingChecksum = true } label: { Label("Checksum", systemImage: "number") }; Button { Task { await model.refresh() } } label: { Label("Refresh", systemImage: "arrow.clockwise") } } }
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 900, minHeight: 600)
+        .toolbar {
+            if model.section == .downloads {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { model.isShowingNewDownload = true } label: { Label(LocalizedStringKey("toolbar.newDownload"), systemImage: "plus") }
+                        .help(LocalizedStringKey("toolbar.newDownload"))
+                }
+            }
+            ToolbarItem(placement: .automatic) {
+                Button { Task { await model.refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                    .help(LocalizedStringKey("toolbar.refresh"))
+                    .accessibilityLabel(LocalizedStringKey("toolbar.refresh"))
+            }
+        }
         .sheet(isPresented: $model.isShowingNewDownload) { NewDownloadSheet(model: model) }
-        .sheet(isPresented: $showingChecksum) { ChecksumToolView() }
-        .alert("AB Download Manager", isPresented: Binding(get: { model.lastError != nil }, set: { if !$0 { model.lastError = nil } })) { Button("OK") {} } message: { Text(model.lastError ?? "") }
+        .alert(LocalizedStringKey("app.title"), isPresented: Binding(get: { model.lastError != nil }, set: { if !$0 { model.lastError = nil } })) { Button(LocalizedStringKey("common.ok")) {} } message: { Text(model.lastError ?? "") }
         .preferredColorScheme(model.settings.theme == .dark ? .dark : model.settings.theme == .light ? .light : nil)
-        .modifier(GlassModifier(enabled: !reduceTransparency && !reduceMotion))
+        .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+            .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
     }
 }
 
-struct GlassModifier: ViewModifier { let enabled: Bool; func body(content: Content) -> some View { if #available(macOS 26.0, *), enabled { content.glassEffect(.regular, in: .rect(cornerRadius: 12)) } else { content.background(.thickMaterial, in: RoundedRectangle(cornerRadius: 12)) } } }
-
-struct SidebarStatus: View { @ObservedObject var model: AppModel; var body: some View { let active = model.tasks.filter { $0.status.isActive }.count; return Text("\(active) active · \(model.tasks.count) total").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(12).accessibilityLabel("\(active) active downloads, \(model.tasks.count) total") } }
-
+struct SidebarStatus: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
+    var body: some View {
+        let active = model.tasks.filter { $0.status.isActive }.count
+        let summary = AppLocalization.format("status.activeTotal", language: language, active, model.tasks.count)
+        return Text(summary).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(12).accessibilityLabel(summary)
+    }
+}
 struct DownloadList: View {
     @ObservedObject var model: AppModel
+    @State private var showingChecksum = false
     var visible: [DownloadTask] { model.tasks.filter { !$0.status.isTerminal }.sorted { $0.createdAt > $1.createdAt } }
     var body: some View {
-        Group { if visible.isEmpty { ContentUnavailableView(LocalizedStringKey("downloads.empty.title"), systemImage: "arrow.down.circle", description: Text(LocalizedStringKey("downloads.empty.description"))) } else { List(selection: $model.selectedTaskID) { ForEach(visible) { task in DownloadRow(task: task, progress: model.progress[task.id], onStart: { Task { await model.start(task) } }, onPause: { Task { await model.pause(task) } }, onCancel: { Task { await model.cancel(task) } }, onRetry: { Task { await model.retry(task) } }).tag(task.id) } }.accessibilityLabel("Active downloads") } }
+        Group { if visible.isEmpty { ContentUnavailableView(LocalizedStringKey("downloads.empty.title"), systemImage: "arrow.down.circle", description: Text(LocalizedStringKey("downloads.empty.description"))) } else { List(selection: $model.selectedTaskID) { ForEach(visible) { task in DownloadRow(task: task, progress: model.progress[task.id], onStart: { Task { await model.start(task) } }, onPause: { Task { await model.pause(task) } }, onCancel: { Task { await model.cancel(task) } }, onRetry: { Task { await model.retry(task) } }).tag(task.id) } }.accessibilityLabel(LocalizedStringKey("downloads.active")) } }
         .navigationTitle(LocalizedStringKey("downloads.title"))
+        .toolbar { ToolbarItem(placement: .automatic) { Button { showingChecksum = true } label: { Image(systemName: "number") }.help(LocalizedStringKey("toolbar.checksum")).accessibilityLabel(LocalizedStringKey("toolbar.checksum")) } }
+        .sheet(isPresented: $showingChecksum) { ChecksumToolView() }
     }
 }
 
 struct DownloadRow: View {
     let task: DownloadTask; let progress: DownloadProgress?; let onStart: () -> Void; let onPause: () -> Void; let onCancel: () -> Void; let onRetry: () -> Void
+    @Environment(\.appLanguage) private var language
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon).font(.title3).foregroundStyle(color).accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) { Text(task.fileName).lineLimit(1); HStack { ProgressView(value: task.progress); Text(statusText).font(.caption).foregroundStyle(.secondary) } }
-            Spacer(); if task.status == .downloading { Button(action: onPause) { Image(systemName: "pause.fill") }.buttonStyle(.borderless).accessibilityLabel("Pause \(task.fileName)") } else if task.status.isResumable { Button(action: onStart) { Image(systemName: "play.fill") }.buttonStyle(.borderless).accessibilityLabel("Start \(task.fileName)") }; if task.status.isActive { Button(action: onCancel) { Image(systemName: "xmark") }.buttonStyle(.borderless).accessibilityLabel("Cancel \(task.fileName)") }
-        }.padding(.vertical, 5).contextMenu { Button("Start", action: onStart); Button("Pause", action: onPause); Button("Cancel", action: onCancel); if task.status == .failed { Button("Retry", action: onRetry) } }
+            VStack(alignment: .leading, spacing: 4) { Text(task.fileName).lineLimit(1); HStack { ProgressView(value: task.progress); statusLabel.font(.caption).foregroundStyle(.secondary) } }
+            Spacer(); if task.status == .downloading { Button(action: onPause) { Image(systemName: "pause.fill") }.buttonStyle(.borderless).accessibilityLabel(Text(pauseLabel)) } else if task.status.isResumable { Button(action: onStart) { Image(systemName: "play.fill") }.buttonStyle(.borderless).accessibilityLabel(Text(startLabel)) }; if task.status.isActive { Button(action: onCancel) { Image(systemName: "xmark") }.buttonStyle(.borderless).accessibilityLabel(Text(cancelLabel)) }
+        }.padding(.vertical, 5).contextMenu { Button(LocalizedStringKey("commands.start"), action: onStart); Button(LocalizedStringKey("commands.pause"), action: onPause); Button(LocalizedStringKey("newDownload.cancel"), action: onCancel); if task.status == .failed { Button(LocalizedStringKey("commands.retry"), action: onRetry) } }
     }
     var icon: String { switch task.status { case .completed: "checkmark.circle.fill"; case .failed: "exclamationmark.triangle.fill"; case .paused: "pause.circle"; case .downloading: "arrow.down.circle.fill"; default: "circle" } }
     var color: Color { task.status == .failed ? .red : task.status == .completed ? .green : .accentColor }
-    var statusText: String { if let progress { return "\(Int((progress.total.map { Double(progress.downloaded) / Double(max(1, $0)) } ?? task.progress) * 100))% · \(formatBytes(progress.bytesPerSecond))/s" }; return task.status.rawValue.capitalized }
+    @ViewBuilder var statusLabel: some View { if let progress { Text("\(Int((progress.total.map { Double(progress.downloaded) / Double(max(1, $0)) } ?? task.progress) * 100))% · \(formatBytes(progress.bytesPerSecond))/s") } else { Text(statusKey(task.status)) } }
+    private var pauseLabel: String { AppLocalization.format("task.pauseFormat", language: language, task.fileName) }
+    private var startLabel: String { AppLocalization.format("task.startFormat", language: language, task.fileName) }
+    private var cancelLabel: String { AppLocalization.format("task.cancelFormat", language: language, task.fileName) }
     func formatBytes(_ value: Double) -> String { ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file) }
 }
 
@@ -299,17 +422,17 @@ struct TaskInspector: View {
     @State private var editing = false
     var body: some View {
         Form {
-            LabeledContent("File", value: task.fileName); LabeledContent("Status", value: task.status.rawValue.capitalized); LabeledContent("Destination", value: task.folderPath)
-            if let total = task.totalSize { LabeledContent("Size", value: ByteCountFormatter.string(fromByteCount: total, countStyle: .file)) }
-            LabeledContent("Connections", value: "\(task.connectionCount)")
-            if let speed = progress?.bytesPerSecond { LabeledContent("Speed", value: ByteCountFormatter.string(fromByteCount: Int64(speed), countStyle: .file) + "/s") }
-            if let eta = progress?.eta { LabeledContent("Time remaining", value: Duration.seconds(eta).formatted(.time(pattern: .hourMinuteSecond))) }
+            LabeledContent(LocalizedStringKey("task.file"), value: task.fileName); LabeledContent { Text(statusKey(task.status)) } label: { Text(LocalizedStringKey("task.status")) }; LabeledContent(LocalizedStringKey("task.destination"), value: task.folderPath)
+            if let total = task.totalSize { LabeledContent(LocalizedStringKey("task.size"), value: ByteCountFormatter.string(fromByteCount: total, countStyle: .file)) }
+            LabeledContent(LocalizedStringKey("task.connections"), value: "\(task.connectionCount)")
+            if let speed = progress?.bytesPerSecond { LabeledContent(LocalizedStringKey("task.speed"), value: ByteCountFormatter.string(fromByteCount: Int64(speed), countStyle: .file) + "/s") }
+            if let eta = progress?.eta { LabeledContent(LocalizedStringKey("task.remaining"), value: Duration.seconds(eta).formatted(.time(pattern: .hourMinuteSecond))) }
             if let error = task.errorMessage { Text(error).foregroundStyle(.red) }
             HStack {
-                Button("Edit Task") { editing = true }.disabled(!task.canEdit)
-                if task.status == .completed { Button("Open") { NSWorkspace.shared.open(URL(fileURLWithPath: task.filePath)) }; Button("Reveal") { NSWorkspace.shared.selectFile(task.filePath, inFileViewerRootedAtPath: task.folderPath) } }
+                Button(LocalizedStringKey("task.edit")) { editing = true }.disabled(!task.canEdit)
+                if task.status == .completed { Button(LocalizedStringKey("task.open")) { NSWorkspace.shared.open(URL(fileURLWithPath: task.filePath)) }; Button(LocalizedStringKey("task.reveal")) { NSWorkspace.shared.selectFile(task.filePath, inFileViewerRootedAtPath: task.folderPath) } }
             }
-        }.formStyle(.grouped).padding().navigationTitle("Details").accessibilityElement(children: .contain).sheet(isPresented: $editing) { EditTaskSheet(model: model, task: task) }
+        }.formStyle(.grouped).padding().navigationTitle(LocalizedStringKey("task.details")).accessibilityElement(children: .contain).sheet(isPresented: $editing) { EditTaskSheet(model: model, task: task) }
     }
 }
 
@@ -322,16 +445,17 @@ struct EditTaskSheet: View {
     init(model: AppModel, task: DownloadTask) { self.model = model; self.task = task; _name = State(initialValue: task.fileName); _folder = State(initialValue: task.folderPath); _url = State(initialValue: task.source.url.absoluteString); _queueID = State(initialValue: task.queueID); _categoryID = State(initialValue: task.categoryID); _checksum = State(initialValue: task.expectedChecksum ?? ""); _speed = State(initialValue: String(task.speedLimit)) }
     var body: some View {
         Form {
-            TextField("File name", text: $name); TextField("Folder", text: $folder); TextField("URL", text: $url).disabled(task.status == .completed)
-            HStack { Picker("Queue", selection: $queueID) { Text("No queue").tag(Int64?.none); ForEach(model.queues) { Text($0.name).tag(Optional($0.id)) } }; Picker("Category", selection: $categoryID) { Text("Automatic").tag(Int64?.none); ForEach(model.categories) { Text($0.name).tag(Optional($0.id)) } } }
-            TextField("Headers Name: Value per line", text: $headers).disabled(task.status == .completed); TextField("Checksum", text: $checksum).disabled(task.status == .completed); TextField("Speed bytes/s", text: $speed).disabled(task.status == .completed)
-            HStack { Spacer(); Button("Cancel") { dismiss() }; Button("Save") { let parsed = Dictionary(uniqueKeysWithValues: headers.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).compactMap { line -> (String, String)? in let pair = line.split(separator: ":", maxSplits: 1).map(String.init); guard pair.count == 2 else { return nil }; return (pair[0].trimmingCharacters(in: .whitespaces), pair[1].trimmingCharacters(in: .whitespaces)) }); Task { await model.editTask(task, fileName: name, folder: folder, urlText: url, queueID: queueID, categoryID: categoryID, headers: parsed, checksum: checksum.isEmpty ? nil : checksum, speedLimit: Int64(speed) ?? 0); dismiss() } }.keyboardShortcut(.defaultAction) }
+            TextField(LocalizedStringKey("task.fileName"), text: $name); TextField(LocalizedStringKey("task.folder"), text: $folder); TextField(LocalizedStringKey("task.url"), text: $url).disabled(task.status == .completed)
+            HStack { Picker(LocalizedStringKey("newDownload.queue"), selection: $queueID) { Text(LocalizedStringKey("newDownload.noQueue")).tag(Int64?.none); ForEach(model.queues) { Text($0.name).tag(Optional($0.id)) } }; Picker(LocalizedStringKey("newDownload.category"), selection: $categoryID) { Text(LocalizedStringKey("newDownload.automatic")).tag(Int64?.none); ForEach(model.categories) { Text($0.name).tag(Optional($0.id)) } } }
+            TextField(LocalizedStringKey("host.headers"), text: $headers).disabled(task.status == .completed); TextField(LocalizedStringKey("toolbar.checksum"), text: $checksum).disabled(task.status == .completed); TextField(LocalizedStringKey("host.speed"), text: $speed).disabled(task.status == .completed)
+            HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("task.save")) { let parsed = Dictionary(uniqueKeysWithValues: headers.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).compactMap { line -> (String, String)? in let pair = line.split(separator: ":", maxSplits: 1).map(String.init); guard pair.count == 2 else { return nil }; return (pair[0].trimmingCharacters(in: .whitespaces), pair[1].trimmingCharacters(in: .whitespaces)) }); Task { await model.editTask(task, fileName: name, folder: folder, urlText: url, queueID: queueID, categoryID: categoryID, headers: parsed, checksum: checksum.isEmpty ? nil : checksum, speedLimit: Int64(speed) ?? 0); dismiss() } }.keyboardShortcut(.defaultAction) }
         }.padding().frame(width: 650)
     }
 }
 
 struct NewDownloadSheet: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State private var links = ""
     @State private var batchPattern = ""
     @State private var batchStart = "0"
@@ -349,29 +473,29 @@ struct NewDownloadSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(LocalizedStringKey("newDownload.title")).font(.title2.bold())
-            Text("Paste one or more HTTP(S) links, one per line.").foregroundStyle(.secondary)
+            Text(LocalizedStringKey("newDownload.linksHelp")).foregroundStyle(.secondary)
             TextEditor(text: $links).frame(minHeight: 105).overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
-            DisclosureGroup("Batch URL pattern (optional)") {
+            DisclosureGroup(LocalizedStringKey("newDownload.batch")) {
                 TextField("https://example.test/file-*.bin", text: $batchPattern)
-                HStack { TextField("From", text: $batchStart); TextField("To", text: $batchEnd); TextField("Padding (0 = auto)", text: $batchPadding) }
-                if let count = batchCount { Text("Preview: \(count) URLs").font(.caption).foregroundStyle(.secondary) }
+                HStack { TextField(LocalizedStringKey("newDownload.from"), text: $batchStart); TextField(LocalizedStringKey("newDownload.to"), text: $batchEnd); TextField(LocalizedStringKey("newDownload.padding"), text: $batchPadding) }
+                if let count = batchCount { Text(AppLocalization.format("newDownload.preview", language: language, count)).font(.caption).foregroundStyle(.secondary) }
             }
-            HStack { TextField("Destination folder", text: $folder); Button("Choose…") { chooseFolder() } }
-            TextField("Request headers (one Name: Value per line)", text: $headers)
+            HStack { TextField(LocalizedStringKey("newDownload.destination"), text: $folder); Button(LocalizedStringKey("newDownload.choose")) { chooseFolder() } }
+            TextField(LocalizedStringKey("newDownload.headers"), text: $headers)
             HStack {
-                TextField("Checksum (SHA-256:hex)", text: $checksum)
-                TextField("Task limit bytes/s (0 = global)", text: $speed)
+                TextField(LocalizedStringKey("newDownload.checksum"), text: $checksum)
+                TextField(LocalizedStringKey("newDownload.taskLimit"), text: $speed)
             }
             HStack {
-                Picker("Queue", selection: $queueID) {
-                    Text("No queue").tag(Int64?.none)
+                Picker(LocalizedStringKey("newDownload.queue"), selection: $queueID) {
+                    Text(LocalizedStringKey("newDownload.noQueue")).tag(Int64?.none)
                     ForEach(model.queues) { Text($0.name).tag(Optional($0.id)) }
                 }
-                Picker("Category", selection: $categoryID) {
-                    Text("Automatic").tag(Int64?.none)
+                Picker(LocalizedStringKey("newDownload.category"), selection: $categoryID) {
+                    Text(LocalizedStringKey("newDownload.automatic")).tag(Int64?.none)
                     ForEach(model.categories) { Text($0.name).tag(Optional($0.id)) }
                 }
-                Picker("Conflict", selection: $conflict) { ForEach(FileConflictPolicy.allCases) { Text($0.rawValue.capitalized).tag($0) } }
+                Picker(LocalizedStringKey("newDownload.conflict"), selection: $conflict) { ForEach(FileConflictPolicy.allCases) { Text(conflictKey($0)).tag($0) } }
             }
             Toggle(LocalizedStringKey("newDownload.startImmediately"), isOn: $start)
             HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("newDownload.add")) {
@@ -393,6 +517,7 @@ struct NewDownloadSheet: View {
 
 struct QueueList: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State private var showingNewQueue = false
     @State private var editingQueue: DownloadQueue?
     var body: some View {
@@ -401,10 +526,10 @@ struct QueueList: View {
                 HStack {
                     Button { Task { await model.toggleQueue(queue) } } label: { Image(systemName: queue.isRunning ? "play.circle.fill" : "pause.circle") }.buttonStyle(.borderless).accessibilityLabel(queue.isRunning ? "Stop \(queue.name)" : "Start \(queue.name)")
                     Text(queue.name)
-                    Button { editingQueue = queue } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel("Edit \(queue.name)")
+                    Button { editingQueue = queue } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("queue.edit"))
                     Spacer()
-                    Text("max \(queue.concurrencyLimit)").font(.caption).foregroundStyle(.secondary)
-                    if model.queues.count > 1 { Button { Task { await model.deleteQueue(queue) } } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel("Delete \(queue.name)") }
+                    Text(AppLocalization.format("task.maxConnections", language: language, queue.concurrencyLimit)).font(.caption).foregroundStyle(.secondary)
+                    if model.queues.count > 1 { Button { Task { await model.deleteQueue(queue) } } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("common.delete")) }
                 }
             }
             .onMove { offsets, destination in
@@ -413,7 +538,7 @@ struct QueueList: View {
                 Task { try? await model.store?.reorderQueues(ids: reordered); await model.refresh() }
             }
         }
-        .toolbar { Button { showingNewQueue = true } label: { Label("New Queue", systemImage: "plus") } }
+        .toolbar { Button { showingNewQueue = true } label: { Label(LocalizedStringKey("queue.new"), systemImage: "plus") } }
         .navigationTitle(LocalizedStringKey("queues.title"))
         .sheet(isPresented: $showingNewQueue) { NewQueueSheet(model: model) }
         .sheet(item: $editingQueue) { QueueEditSheet(model: model, queue: $0) }
@@ -422,16 +547,18 @@ struct QueueList: View {
 
 struct NewQueueSheet: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State private var name = ""
     @State private var concurrency = 1
     @Environment(\.dismiss) private var dismiss
     var body: some View {
-        Form { TextField("Queue name", text: $name); Stepper("Concurrent downloads: \(concurrency)", value: $concurrency, in: 1...64); HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button("Create") { Task { await model.addQueue(name: name, concurrency: concurrency); dismiss() } }.keyboardShortcut(.defaultAction) } }.padding().frame(width: 420)
+        Form { TextField(LocalizedStringKey("queue.name"), text: $name); Stepper(AppLocalization.format("queue.concurrentCount", language: language, concurrency), value: $concurrency, in: 1...64); HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("common.create")) { Task { await model.addQueue(name: name, concurrency: concurrency); dismiss() } }.keyboardShortcut(.defaultAction) } }.padding().frame(width: 420)
     }
 }
 
 struct QueueEditSheet: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State var queue: DownloadQueue
     @State private var scheduleEnabled: Bool
     @State private var startText: String
@@ -442,76 +569,78 @@ struct QueueEditSheet: View {
     init(model: AppModel, queue: DownloadQueue) { self.model = model; _queue = State(initialValue: queue); let schedule = queue.schedule ?? QueueSchedule(); _scheduleEnabled = State(initialValue: queue.schedule != nil); _startText = State(initialValue: QueueEditSheet.time(schedule.startSeconds)); _endText = State(initialValue: QueueEditSheet.time(schedule.endSeconds)); _weekdays = State(initialValue: schedule.weekdays) }
     var body: some View {
         Form {
-            TextField("Queue name", text: $queue.name)
-            Stepper("Concurrent downloads: \(queue.concurrencyLimit)", value: $queue.concurrencyLimit, in: 1...64)
-            Toggle("Use schedule", isOn: $scheduleEnabled)
+            TextField(LocalizedStringKey("queue.name"), text: $queue.name)
+            Stepper(AppLocalization.format("queue.concurrentCount", language: language, queue.concurrencyLimit), value: $queue.concurrencyLimit, in: 1...64)
+            Toggle(LocalizedStringKey("queue.schedule"), isOn: $scheduleEnabled)
             if scheduleEnabled {
-                HStack { TextField("Start HH:mm", text: $startText); TextField("End HH:mm", text: $endText) }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4)) { ForEach(QueueSchedule.Weekday.allCases, id: \.self) { day in Toggle(day.rawValue.prefix(3).capitalized, isOn: Binding(get: { weekdays.contains(day) }, set: { if $0 { weekdays.insert(day) } else { weekdays.remove(day) } })) } }
-                Text("End earlier than start creates an overnight window.").font(.caption).foregroundStyle(.secondary)
+                HStack { TextField(LocalizedStringKey("queue.start"), text: $startText); TextField(LocalizedStringKey("queue.end"), text: $endText) }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4)) { ForEach(QueueSchedule.Weekday.allCases, id: \.self) { day in Toggle(weekdayKey(day), isOn: Binding(get: { weekdays.contains(day) }, set: { if $0 { weekdays.insert(day) } else { weekdays.remove(day) } })) } }
+                Text(LocalizedStringKey("queue.overnight")).font(.caption).foregroundStyle(.secondary)
             }
-            Picker("When queue finishes", selection: $queue.completionAction) { ForEach(QueueCompletionAction.allCases) { Text($0.rawValue).tag($0) } }
-            Text("Power actions are disabled by default and always require confirmation.").font(.caption).foregroundStyle(.secondary)
-            HStack { Spacer(); Button("Cancel") { dismiss() }; Button("Save") { if queue.completionAction.isPowerAction { showPowerConfirmation = true } else { save() } }.keyboardShortcut(.defaultAction) }
-        }.padding().frame(width: 520).alert("Confirm queue completion action", isPresented: $showPowerConfirmation) { Button("Cancel", role: .cancel) {}; Button("Enable") { save() } } message: { Text("This action may quit the app or change computer power state after the queue finishes. It will never run without this confirmation.") }
+            Picker(LocalizedStringKey("queue.completion"), selection: $queue.completionAction) { ForEach(QueueCompletionAction.allCases) { Text(completionActionKey($0)).tag($0) } }
+            Text(LocalizedStringKey("queue.completionWarning")).font(.caption).foregroundStyle(.secondary)
+            HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("task.save")) { if queue.completionAction.isPowerAction { showPowerConfirmation = true } else { save() } }.keyboardShortcut(.defaultAction) }
+        }.padding().frame(width: 520).alert(LocalizedStringKey("queue.confirmTitle"), isPresented: $showPowerConfirmation) { Button(LocalizedStringKey("newDownload.cancel"), role: .cancel) {}; Button(LocalizedStringKey("queue.enable")) { save() } } message: { Text(LocalizedStringKey("queue.confirmMessage")) }
     }
     private func save() { var value = queue; if scheduleEnabled, let start = QueueEditSheet.seconds(startText), let end = QueueEditSheet.seconds(endText) { value.schedule = QueueSchedule(weekdays: weekdays, startSeconds: start, endSeconds: end) } else { value.schedule = nil }; Task { await model.updateQueue(value); dismiss() } }
     static func seconds(_ text: String) -> Int? { let pair = text.split(separator: ":").compactMap { Int($0) }; guard pair.count == 2, pair[0] >= 0, pair[0] < 24, pair[1] >= 0, pair[1] < 60 else { return nil }; return pair[0] * 3600 + pair[1] * 60 }
     static func time(_ seconds: Int) -> String { String(format: "%02d:%02d", seconds / 3600, (seconds % 3600) / 60) }
 }
 
-struct HistoryList: View { @ObservedObject var model: AppModel; var body: some View { List(model.history) { record in VStack(alignment: .leading) { Text(record.name); Text(record.finishedAt.formatted()).font(.caption).foregroundStyle(.secondary); Button("Reveal in Finder") { NSWorkspace.shared.selectFile(record.folderPath + "/" + record.fileName, inFileViewerRootedAtPath: record.folderPath) }.buttonStyle(.link) } }.toolbar { Button("Clear History") { Task { guard let store = model.store else { return }; try? await store.clearHistory(); await model.refresh() } } }.navigationTitle(LocalizedStringKey("history.title")) } }
+struct HistoryList: View { @ObservedObject var model: AppModel; var body: some View { List(model.history) { record in VStack(alignment: .leading) { Text(record.name); Text(record.finishedAt.formatted()).font(.caption).foregroundStyle(.secondary); Button(LocalizedStringKey("history.reveal")) { NSWorkspace.shared.selectFile(record.folderPath + "/" + record.fileName, inFileViewerRootedAtPath: record.folderPath) }.buttonStyle(.link) } }.toolbar { Button(LocalizedStringKey("history.clear")) { Task { guard let store = model.store else { return }; try? await store.clearHistory(); await model.refresh() } } }.navigationTitle(LocalizedStringKey("history.title")) } }
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     var body: some View {
         Form {
-            Section("Appearance") {
-                Picker("Theme", selection: $model.settings.theme) { ForEach(ThemeMode.allCases) { Text($0.displayName).tag($0) } }
-                TextField("Language", text: Binding(get: { model.settings.language ?? "" }, set: { model.settings.language = $0.isEmpty ? nil : $0 }))
-                Toggle("Monitor clipboard for links", isOn: $model.settings.clipboardMonitoring)
+            Section(LocalizedStringKey("settings.appearance")) {
+                Picker(LocalizedStringKey("settings.theme"), selection: $model.settings.theme) { ForEach(ThemeMode.allCases) { Text(themeKey($0)).tag($0) } }
+                Picker(LocalizedStringKey("settings.language"), selection: Binding(get: { model.settings.language ?? "zh-Hans" }, set: { model.settings.language = $0 })) { Text(LocalizedStringKey("language.zhHans")).tag("zh-Hans"); Text(LocalizedStringKey("language.english")).tag("en") }
+                Toggle(LocalizedStringKey("settings.clipboard"), isOn: $model.settings.clipboardMonitoring)
             }
-            Section("Downloads") {
-                Stepper("Connections: \(model.settings.threadCount)", value: $model.settings.threadCount, in: 1...64)
-                Stepper("Concurrent downloads: \(model.settings.maxConcurrentDownloads)", value: $model.settings.maxConcurrentDownloads, in: 1...64)
-                TextField("Download folder", text: $model.settings.defaultDownloadFolder)
-                TextField("User-Agent", text: $model.settings.userAgent)
-                TextField("Global speed limit bytes/s (0 = unlimited)", value: $model.settings.speedLimit, format: .number)
-                Toggle("Delete partial files on cancellation", isOn: $model.settings.deletePartialFileOnDownloadCancellation)
+            Section(LocalizedStringKey("downloads.title")) {
+                Stepper(AppLocalization.format("settings.connectionCount", language: language, model.settings.threadCount), value: $model.settings.threadCount, in: 1...64)
+                Stepper(AppLocalization.format("settings.concurrentCount", language: language, model.settings.maxConcurrentDownloads), value: $model.settings.maxConcurrentDownloads, in: 1...64)
+                TextField(LocalizedStringKey("settings.folder"), text: $model.settings.defaultDownloadFolder)
+                TextField(LocalizedStringKey("settings.userAgent"), text: $model.settings.userAgent)
+                TextField(LocalizedStringKey("settings.globalSpeed"), value: $model.settings.speedLimit, format: .number)
+                Toggle(LocalizedStringKey("settings.deletePartial"), isOn: $model.settings.deletePartialFileOnDownloadCancellation)
             }
-            Section("Proxy and TLS") {
-                Picker("Proxy", selection: $model.settings.proxy.mode) { ForEach(ProxySettings.Mode.allCases) { Text($0.rawValue.capitalized).tag($0) } }
-                TextField("Proxy host", text: $model.settings.proxy.host)
-                TextField("Proxy port", value: $model.settings.proxy.port, format: .number)
-                TextField("Proxy user", text: $model.settings.proxy.username)
-                SecureField("Proxy password", text: $model.settings.proxy.password)
-                Toggle("Allow insecure certificates (not recommended)", isOn: $model.settings.tls.allowInsecureCertificates)
+            Section(LocalizedStringKey("settings.proxyTLS")) {
+                Picker(LocalizedStringKey("settings.proxy"), selection: $model.settings.proxy.mode) { ForEach(ProxySettings.Mode.allCases) { Text(proxyKey($0)).tag($0) } }
+                TextField(LocalizedStringKey("settings.proxyHost"), text: $model.settings.proxy.host)
+                TextField(LocalizedStringKey("settings.proxyPort"), value: $model.settings.proxy.port, format: .number)
+                TextField(LocalizedStringKey("settings.proxyUser"), text: $model.settings.proxy.username)
+                SecureField(LocalizedStringKey("settings.proxyPassword"), text: $model.settings.proxy.password)
+                Toggle(LocalizedStringKey("settings.insecureTLS"), isOn: $model.settings.tls.allowInsecureCertificates)
             }
-            Section("Integration") {
-                Toggle("Local REST service", isOn: $model.settings.integration.enabled)
-                TextField("REST port", value: $model.settings.integration.port, format: .number)
-                Toggle("Use API key", isOn: $model.settings.integration.authEnabled)
-                SecureField("API key", text: $model.settings.integration.apiKey)
-                Text("Bound only to 127.0.0.1:\(model.settings.integration.port)").font(.caption).foregroundStyle(.secondary)
+            Section(LocalizedStringKey("settings.integration")) {
+                Toggle(LocalizedStringKey("settings.rest"), isOn: $model.settings.integration.enabled)
+                TextField(LocalizedStringKey("settings.apiPort"), value: $model.settings.integration.port, format: .number)
+                Toggle(LocalizedStringKey("settings.useAPIKey"), isOn: $model.settings.integration.authEnabled)
+                SecureField(LocalizedStringKey("settings.apiKey"), text: $model.settings.integration.apiKey)
+                Text(AppLocalization.format("settings.boundLoopback", language: language, model.settings.integration.port)).font(.caption).foregroundStyle(.secondary)
             }
             HostOverridesView(model: model)
-            Section("Notifications and updates") {
-                Toggle("Notification sound", isOn: $model.settings.notifications.soundEnabled)
-                Toggle("Completion notifications", isOn: $model.settings.notifications.showCompletionDialog)
-                Toggle("Start at login", isOn: $model.settings.autoStartOnBoot)
-                Picker("Update channel", selection: $model.settings.updateChannel) { ForEach(UpdateChannel.allCases) { Text($0.rawValue.capitalized).tag($0) } }
-                Text("Updates are disabled by default and never install an unsigned or upstream release.").font(.caption).foregroundStyle(.secondary)
+            Section(LocalizedStringKey("settings.notifications")) {
+                Toggle(LocalizedStringKey("settings.sound"), isOn: $model.settings.notifications.soundEnabled)
+                Toggle(LocalizedStringKey("settings.completionNotifications"), isOn: $model.settings.notifications.showCompletionDialog)
+                Toggle(LocalizedStringKey("settings.login"), isOn: $model.settings.autoStartOnBoot)
+                Picker(LocalizedStringKey("settings.updateChannel"), selection: $model.settings.updateChannel) { ForEach(UpdateChannel.allCases) { Text(updateKey($0)).tag($0) } }
+                Text(LocalizedStringKey("settings.updateNote")).font(.caption).foregroundStyle(.secondary)
             }
-            Button("Save Settings") { Task { await model.saveSettings() } }.keyboardShortcut(.defaultAction)
+            Button(LocalizedStringKey("settings.save")) { Task { await model.saveSettings() } }.keyboardShortcut(.defaultAction)
         }.formStyle(.grouped).padding().navigationTitle(LocalizedStringKey("settings.title"))
     }
 }
 
-struct MenuBarView: View { @ObservedObject var model: AppModel; var body: some View { Text("\(model.tasks.filter { $0.status.isActive }.count) active downloads"); Divider(); Button("New Download") { model.isShowingNewDownload = true }; Button("Open Window") { NSApp.activate(ignoringOtherApps: true) }; Divider(); Button("Quit") { NSApp.terminate(nil) } } }
-struct AppCommands: Commands { @ObservedObject var model: AppModel; var body: some Commands { CommandGroup(after: .newItem) { Button("New Download") { model.isShowingNewDownload = true }.keyboardShortcut("n", modifiers: [.command, .shift]) }; CommandMenu("Downloads") { Button("Start Selected") { if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { Task { await model.start(task) } } }.keyboardShortcut(.return, modifiers: [.command]); Button("Pause Selected") { if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { Task { await model.pause(task) } } }.keyboardShortcut("p", modifiers: .command) } } }
+struct MenuBarView: View { @ObservedObject var model: AppModel; @Environment(\.appLanguage) private var language; var body: some View { Text(AppLocalization.format("menubar.active", language: language, model.tasks.filter { $0.status.isActive }.count)); Divider(); Button(LocalizedStringKey("toolbar.newDownload")) { model.isShowingNewDownload = true }; Button(LocalizedStringKey("menubar.open")) { NSApp.activate(ignoringOtherApps: true) }; Divider(); Button(LocalizedStringKey("menubar.quit")) { NSApp.terminate(nil) } } }
+struct AppCommands: Commands { @ObservedObject var model: AppModel; var body: some Commands { CommandGroup(after: .newItem) { Button(LocalizedStringKey("toolbar.newDownload")) { model.isShowingNewDownload = true }.keyboardShortcut("n", modifiers: [.command, .shift]) }; CommandMenu(LocalizedStringKey("downloads.title")) { Button(LocalizedStringKey("commands.startSelected")) { if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { Task { await model.start(task) } } }.keyboardShortcut(.return, modifiers: [.command]); Button(LocalizedStringKey("commands.pauseSelected")) { if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { Task { await model.pause(task) } } }.keyboardShortcut("p", modifiers: .command) } } }
 
 struct CategoriesView: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State private var editing: DownloadCategory?
     @State private var deleting: DownloadCategory?
     var body: some View {
@@ -519,23 +648,24 @@ struct CategoriesView: View {
             ForEach(model.categories.sorted { $0.order < $1.order }) { category in
                 HStack {
                     Image(systemName: "folder").foregroundStyle(.tint)
-                    VStack(alignment: .leading) { Text(category.name); Text(category.acceptedFileTypes.isEmpty ? "All file types" : category.acceptedFileTypes.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
+                    VStack(alignment: .leading) { Text(category.name); Text(category.acceptedFileTypes.isEmpty ? AppLocalization.string("category.allFileTypes", language: language) : category.acceptedFileTypes.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
                     Spacer(); if let path = category.defaultFolder { Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-                    Button { editing = category } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel("Edit \(category.name)")
-                    Button { deleting = category } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel("Delete \(category.name)")
+                    Button { editing = category } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("category.edit"))
+                    Button { deleting = category } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("common.delete"))
                 }
             }
             .onMove { offsets, destination in var ids = model.categories.sorted { $0.order < $1.order }.map(\.id); ids.move(fromOffsets: offsets, toOffset: destination); Task { try? await model.store?.reorderCategories(ids: ids); await model.refresh() } }
         }
-        .toolbar { Button { editing = DownloadCategory(id: 0, name: "", order: model.categories.count) } label: { Label("New Category", systemImage: "plus") } }
-        .navigationTitle("Categories")
+        .toolbar { Button { editing = DownloadCategory(id: 0, name: "", order: model.categories.count) } label: { Label(LocalizedStringKey("category.new"), systemImage: "plus") } }
+        .navigationTitle(LocalizedStringKey("categories.title"))
         .sheet(item: $editing) { CategoryEditorSheet(model: model, category: $0) }
-        .alert("Delete category?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) { Button("Cancel", role: .cancel) {}; Button("Delete", role: .destructive) { if let deleting { Task { await model.deleteCategory(deleting) } } } } message: { Text("Tasks in this category will keep their downloads but lose the category assignment.") }
+        .alert(LocalizedStringKey("category.deleteTitle"), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) { Button(LocalizedStringKey("newDownload.cancel"), role: .cancel) {}; Button(LocalizedStringKey("common.delete"), role: .destructive) { if let deleting { Task { await model.deleteCategory(deleting) } } } } message: { Text(LocalizedStringKey("category.deleteMessage")) }
     }
 }
 
 struct CategoryEditorSheet: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State var category: DownloadCategory
     @State private var extensions: String
     @State private var hosts: String
@@ -543,11 +673,11 @@ struct CategoryEditorSheet: View {
     init(model: AppModel, category: DownloadCategory) { self.model = model; _category = State(initialValue: category); _extensions = State(initialValue: category.acceptedFileTypes.joined(separator: ", ")); _hosts = State(initialValue: category.acceptedURLPatterns.joined(separator: ", ")) }
     var body: some View {
         Form {
-            TextField("Category name", text: $category.name)
-            TextField("Extensions (comma-separated)", text: $extensions)
-            TextField("Host or URL patterns (comma-separated)", text: $hosts)
-            HStack { Text(category.defaultFolder ?? "No default folder").lineLimit(1); Button("Choose…") { chooseFolder() }; if category.defaultFolder != nil { Button("Clear") { category.defaultFolder = nil } } }
-            HStack { Spacer(); Button("Cancel") { dismiss() }; Button("Save") { category.acceptedFileTypes = split(extensions); category.acceptedURLPatterns = split(hosts); Task { if category.id == 0 { await model.addCategory(name: category.name, extensions: category.acceptedFileTypes, hosts: category.acceptedURLPatterns, folder: category.defaultFolder) } else { await model.saveCategory(category) }; dismiss() } }.keyboardShortcut(.defaultAction).disabled(category.name.trimmingCharacters(in: .whitespaces).isEmpty) }
+            TextField(LocalizedStringKey("category.name"), text: $category.name)
+            TextField(LocalizedStringKey("category.extensions"), text: $extensions)
+            TextField(LocalizedStringKey("category.patterns"), text: $hosts)
+            HStack { Text(category.defaultFolder ?? AppLocalization.string("category.noFolder", language: language)).lineLimit(1); Button(LocalizedStringKey("newDownload.choose")) { chooseFolder() }; if category.defaultFolder != nil { Button(LocalizedStringKey("category.clear")) { category.defaultFolder = nil } } }
+            HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("task.save")) { category.acceptedFileTypes = split(extensions); category.acceptedURLPatterns = split(hosts); Task { if category.id == 0 { await model.addCategory(name: category.name, extensions: category.acceptedFileTypes, hosts: category.acceptedURLPatterns, folder: category.defaultFolder) } else { await model.saveCategory(category) }; dismiss() } }.keyboardShortcut(.defaultAction).disabled(category.name.trimmingCharacters(in: .whitespaces).isEmpty) }
         }.padding().frame(width: 560)
     }
     private func split(_ value: String) -> [String] { value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } }
@@ -558,28 +688,29 @@ struct HostOverridesView: View {
     @ObservedObject var model: AppModel
     @State private var editing: HostOverride?
     var body: some View {
-        Section("Per-host defaults") {
+        Section(LocalizedStringKey("host.title")) {
             ForEach(model.hostOverrides) { value in
-                HStack { Text(value.host); Spacer(); Text(value.threadCount.map(String.init) ?? "global").font(.caption); Button { editing = value } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel("Edit host override"); Button { Task { await model.deleteHostOverride(value) } } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel("Delete host override") }
+                HStack { Text(value.host); Spacer(); Text(value.threadCount.map(String.init) ?? "global").font(.caption); Button { editing = value } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("host.edit")); Button { Task { await model.deleteHostOverride(value) } } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("host.delete")) }
             }
-            Button("Add Host Override") { editing = HostOverride(host: "") }
+            Button(LocalizedStringKey("host.add")) { editing = HostOverride(host: "") }
         }.sheet(item: $editing) { HostOverrideEditorSheet(model: model, value: $0) }
     }
 }
 
 struct HostOverrideEditorSheet: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State var value: HostOverride
     @State private var threads: String; @State private var speed: String; @State private var headers: String
     @Environment(\.dismiss) private var dismiss
     init(model: AppModel, value: HostOverride) { self.model = model; _value = State(initialValue: value); _threads = State(initialValue: value.threadCount.map(String.init) ?? ""); _speed = State(initialValue: value.speedLimit.map(String.init) ?? ""); _headers = State(initialValue: value.headers.map { "\($0.key): \($0.value)" }.joined(separator: "\n")) }
     var body: some View {
         Form {
-            TextField("Host (example.test)", text: $value.host)
-            HStack { Text(value.defaultFolder ?? "No default folder").lineLimit(1); Button("Choose…") { chooseFolder() }; if value.defaultFolder != nil { Button("Clear") { value.defaultFolder = nil } } }
-            Picker("Default category", selection: $value.categoryID) { Text("None").tag(Int64?.none); ForEach(model.categories) { Text($0.name).tag(Optional($0.id)) } }
-            TextField("Connections", text: $threads); TextField("Speed bytes/s", text: $speed); TextField("Headers Name: Value per line", text: $headers)
-            HStack { Spacer(); Button("Cancel") { dismiss() }; Button("Save") { let pairs = headers.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).compactMap { line -> (String, String)? in let parts = line.split(separator: ":", maxSplits: 1).map(String.init); guard parts.count == 2 else { return nil }; return (parts[0].trimmingCharacters(in: .whitespaces), parts[1].trimmingCharacters(in: .whitespaces)) }; Task { await model.saveHostOverride(host: value.host, headers: Dictionary(uniqueKeysWithValues: pairs), threadCount: Int(threads), speedLimit: Int64(speed), defaultFolder: value.defaultFolder, categoryID: value.categoryID); dismiss() } }.keyboardShortcut(.defaultAction) }
+            TextField(LocalizedStringKey("host.name"), text: $value.host)
+            HStack { Text(value.defaultFolder ?? AppLocalization.string("category.noFolder", language: language)).lineLimit(1); Button(LocalizedStringKey("newDownload.choose")) { chooseFolder() }; if value.defaultFolder != nil { Button(LocalizedStringKey("category.clear")) { value.defaultFolder = nil } } }
+            Picker(LocalizedStringKey("host.defaultCategory"), selection: $value.categoryID) { Text(LocalizedStringKey("common.none")).tag(Int64?.none); ForEach(model.categories) { Text($0.name).tag(Optional($0.id)) } }
+            TextField(LocalizedStringKey("task.connections"), text: $threads); TextField(LocalizedStringKey("host.speed"), text: $speed); TextField(LocalizedStringKey("host.headers"), text: $headers)
+            HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("task.save")) { let pairs = headers.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).compactMap { line -> (String, String)? in let parts = line.split(separator: ":", maxSplits: 1).map(String.init); guard parts.count == 2 else { return nil }; return (parts[0].trimmingCharacters(in: .whitespaces), parts[1].trimmingCharacters(in: .whitespaces)) }; Task { await model.saveHostOverride(host: value.host, headers: Dictionary(uniqueKeysWithValues: pairs), threadCount: Int(threads), speedLimit: Int64(speed), defaultFolder: value.defaultFolder, categoryID: value.categoryID); dismiss() } }.keyboardShortcut(.defaultAction) }
         }.padding().frame(width: 620)
     }
     private func chooseFolder() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; if panel.runModal() == .OK { value.defaultFolder = panel.url?.path } }

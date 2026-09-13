@@ -147,3 +147,58 @@ The app target still produces the unsigned universal bundle at
 No full Swift test suite, full Xcode test suite, UI automation, VoiceOver,
 public-network download, signing, notarization, or release operation was run
 in this job.
+
+## Job-010 verification record (2026-09-13)
+
+Focused localization and layout closeout. Commands actually run:
+
+- `swift build` — passed.
+- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed with no warnings or errors.
+
+Bundle inspection of the resulting Release build:
+
+- `Contents/Resources` contains only `en.lproj`, `zh-Hans.lproj`, and
+  `Metadata.appintents`; there is no nested `Contents/Resources/Resources`.
+- `plutil -lint` reports OK for both `Localizable.strings` files.
+- `CFBundleDevelopmentRegion` is `zh-Hans`, so the bundle's own default is
+  Simplified Chinese rather than English.
+- Sidebar keys resolve to 下载 / 队列 / 分类 / 历史记录 / 设置 in `zh-Hans` and to
+  Downloads / Queues / Categories / History / Settings in `en`.
+- All 173 localization keys referenced from Swift sources resolve in both
+  bundles; neither file contains duplicate definitions.
+
+Not verified here (left to manual testing): actual on-screen rendering, colour
+scheme and Reduce Motion/Transparency appearance, VoiceOver, and window resizing.
+No signing, notarization, launch, test suite, or network activity was performed.
+
+## Job-011 verification record (2026-09-13)
+
+Closeout: signed Release bundle delivered to `outputs/`.
+
+Commands actually run and their results:
+
+- `swift build` — passed.
+- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — exit 0, BUILD SUCCEEDED, no warnings or errors.
+- `codesign --force --timestamp=none --options runtime --sign <Apple Development identity>` applied to the embedded framework binary, the framework bundle, and the app bundle, inner-to-outer.
+- `codesign --verify --deep --strict --verbose=2` — "valid on disk" and "satisfies its Designated Requirement".
+- `spctl -a -vv` — accepted, origin `Apple Development: guozhongeba@gmail.com (PS6ALT4AA5)`, TeamIdentifier `ZNSTKHPLY3`.
+- The app was launched from `outputs/` and the process stayed alive; a window capture was taken with `screencapture -l<windowID>`.
+
+Shipped bundle inspection (`outputs/AB Download Manager.app`):
+
+- `Contents/Resources` contains exactly `en.lproj`, `zh-Hans.lproj`, `Metadata.appintents`; no nested `Contents/Resources/Resources`.
+- `CFBundleDevelopmentRegion` is `zh-Hans`.
+- Sidebar and empty-state keys resolve in Chinese: 下载 / 队列 / 分类 / 历史记录 / 设置 and 暂无下载.
+- All 173 localization keys referenced from Swift sources resolve in both shipped bundles (zh-Hans 752 entries, en 194 entries).
+- Executable and embedded framework are universal arm64 + x86_64.
+
+Screenshot: `outputs/ABDM-final.png` shows the shipped build running in
+Simplified Chinese — sidebar 资料库/应用 sections with 下载/队列/分类/历史记录/设置,
+window title 下载, and the 暂无下载 empty state. No raw `*.title` keys are shown
+and no empty detail pane appears on the Downloads page.
+
+Not verified (left to manual testing): adding and downloading a real file, queue
+scheduling, category and host-override editing, switching the language picker
+between 简体中文 and English at runtime, VoiceOver, and light/dark plus
+Reduce Motion/Transparency appearance. No notarization was performed and no
+test suite or network download was run.

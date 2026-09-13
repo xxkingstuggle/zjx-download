@@ -5,6 +5,9 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 *.app/
 *.dSYM/
+# macOS Finder metadata
+.DS_Store
+
 # Local worker/session and user data
 .agent-work/
 *.abpart
