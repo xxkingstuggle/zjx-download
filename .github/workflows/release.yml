@@ -68,6 +68,10 @@ jobs:
             /usr/bin/codesign --force --sign - --timestamp=none "$bundle"
           done < <(/usr/bin/find "$APP/Contents" \( -name '*.xpc' -o -name '*.appex' \) -print0)
 
+          # Xcode may expose embedded frameworks through a symlinked
+          # Contents/Frameworks directory. Deep signing is the reliable
+          # final fallback for that layout.
+          /usr/bin/codesign --force --deep --sign - --timestamp=none "$APP"
           codesign --force --sign - --timestamp=none "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
 
