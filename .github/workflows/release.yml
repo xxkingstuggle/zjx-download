@@ -60,11 +60,13 @@ jobs:
           # Sign bundle containers after their Mach-O payloads. Do not use
           # sort -z here because the macOS runner's BSD sort has no -z flag.
           while IFS= read -r -d '' bundle; do
+            echo "Signing framework: $bundle"
             /usr/bin/codesign --force --sign - --timestamp=none "$bundle"
-          done < <(/usr/bin/find "$APP/Contents" -type d -name '*.framework' -print0)
+          done < <(/usr/bin/find "$APP/Contents" -name '*.framework' -print0)
           while IFS= read -r -d '' bundle; do
+            echo "Signing extension: $bundle"
             /usr/bin/codesign --force --sign - --timestamp=none "$bundle"
-          done < <(/usr/bin/find "$APP/Contents" -type d \( -name '*.xpc' -o -name '*.appex' \) -print0)
+          done < <(/usr/bin/find "$APP/Contents" \( -name '*.xpc' -o -name '*.appex' \) -print0)
 
           codesign --force --sign - --timestamp=none "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
