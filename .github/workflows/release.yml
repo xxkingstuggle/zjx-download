@@ -13,8 +13,8 @@ jobs:
   build-release:
     runs-on: macos-14
     env:
-      APP_NAME: AB Download Manager.app
-      ZIP_NAME: AB-Download-Manager-macOS.zip
+      APP_NAME: zjx-download.app
+      ZIP_NAME: zjx-download-macOS.zip
       DERIVED_DATA: ${{ github.workspace }}/.build/release
 
     steps:
@@ -30,8 +30,8 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild \
-            -project ABDownloadManager.xcodeproj \
-            -scheme ABDownloadManager \
+            -project zjx-download.xcodeproj \
+            -scheme zjx-download \
             -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
@@ -64,13 +64,13 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AB-Download-Manager-macOS
-          path: artifacts/AB-Download-Manager-macOS.zip
+          name: zjx-download-macOS
+          path: artifacts/zjx-download-macOS.zip
           if-no-files-found: error
 
       - name: Create GitHub Release for tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/AB-Download-Manager-macOS.zip
+          files: artifacts/zjx-download-macOS.zip
           generate_release_notes: true

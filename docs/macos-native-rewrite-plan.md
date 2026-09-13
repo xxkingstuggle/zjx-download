@@ -1,4 +1,4 @@
-# AB Download Manager macOS native rewrite matrix
+# zjx-download macOS native rewrite matrix
 
 This matrix is the audit record for the Swift 6/macOS 26 rewrite. The source
 paths in the evidence column refer to the upstream tree at
@@ -45,14 +45,14 @@ not as runtime code. Verification is local and does not use a public server.
 | Secure updates | `shared/updater/...` GitHub updater sources | opt-in HTTPS manifest/digest policy; disabled by default for fork; no unsigned install | `SecureUpdatePolicy` unit surface | Implemented safely |
 | Localized strings | `shared/resources/.../locales/*.properties` (27 locales) | generated Apple `.lproj/Localizable.strings` resources | SPM resource compilation | Partial (critical English/Chinese keys wired; full UI review remains) |
 | Liquid Glass/accessibility | Compose theme and desktop settings UI | macOS 26 `.glassEffect`, centralized fallback, reduce transparency/motion, labels, keyboard commands, dynamic system fonts | app target build and source audit | Partial (manual VoiceOver/UI automation remains) |
-| App packaging | Gradle desktop packaging workflows | Native `ABDownloadManager.xcodeproj` application target, shared scheme, Info.plist, bundle identifier, asset catalog, and SwiftPM core | `xcodebuild ... build CODE_SIGNING_ALLOWED=NO`; inspect `.app` bundle; `xcodebuild ... test` | Implemented (unsigned local bundle) |
+| App packaging | Gradle desktop packaging workflows | Native `zjx-download.xcodeproj` application target, shared scheme, Info.plist, bundle identifier, asset catalog, and SwiftPM core | `xcodebuild ... build CODE_SIGNING_ALLOWED=NO`; inspect `.app` bundle; `xcodebuild ... test` | Implemented |
 
 ## Verification commands
 
 ```sh
 swift build
 swift test
-swift run ABDownloadManager
+swift run zjx-download
 ```
 
 `swift build`, `swift test`, the shared Xcode scheme build/test, and a bounded standalone `.app` launch are the repeatable checks. `swift run` requires
@@ -75,10 +75,10 @@ network server used by tests.
   loopback range assembly, REST auth/options/queues/preflight, scheduler intent,
   path safety, checksum, shared limiter, part reconciliation, cancellation cleanup,
   bookmark reload, and batch pattern expansion).
-- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed; output is a real universal `AB Download Manager.app`.
-- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO` — passed, 16 tests / 0 failures.
-- Bundle inspection confirmed `CFBundleIdentifier=com.abdownloadmanager.macos`,
-  `CFBundleDisplayName=AB Download Manager`, `CFBundleIconName=AppIcon`, and
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed; output is a real universal `zjx-download.app`.
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO` — passed, 16 tests / 0 failures.
+- Bundle inspection confirmed `CFBundleIdentifier=com.zjx.download`,
+  `CFBundleDisplayName=zjx-download`, `CFBundleIconName=AppIcon`, and
   `LSMinimumSystemVersion=26.0`.
 - Placeholder scan in native sources/tests/docs returned no matches.
 - Kotlin/Java/Gradle/Linux/Windows/Android residue scan returned no matches;
@@ -107,11 +107,11 @@ Focused checks run after the management UI changes:
 - `swift test --filter IntegrationTests.testHTTPProbeAndRangeDownload` — passed, 1 / 0.
 - `swift test --filter IntegrationTests.testRESTCompatibility` — passed, 1 / 0.
 - `swift build` — passed.
-- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed; new `Classification.swift` and `ChecksumToolView.swift` are included in the Xcode source phases.
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed; new `Classification.swift` and `ChecksumToolView.swift` are included in the Xcode source phases.
 - No complete Xcode test run was repeated in this job, per the minimal-test constraint. The prior complete Xcode run remains recorded above as 16 tests / 0 failures.
 
 The app target still produces the unsigned universal bundle at
-`~/Library/Developer/Xcode/DerivedData/ABDownloadManager-*/Build/Products/Debug/AB Download Manager.app`.
+`~/Library/Developer/Xcode/DerivedData/zjx-download-*/Build/Products/Debug/zjx-download.app`.
 
 ## Manual acceptance checklist (not run by automation)
 
@@ -139,9 +139,9 @@ The app target still produces the unsigned universal bundle at
 - `swift test --filter ModelTests` — passed, 10 tests / 0 failures. This includes category rules, legacy state decoding, host override Codable/application, bookmark reload, batch expansion, queue schedule round-trip, proxy credentials, path conflict, and shared limiter checks.
 - `swift test --filter IntegrationTests.testHLSAssembly` — passed, 1 test / 0 failures; this exercises the unencrypted HLS streaming path against the loopback fixture.
 - `swift build` — passed.
-- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed after all Job-008 source changes.
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed after all Job-008 source changes.
 - Bundle metadata and a bounded 2-second standalone launch smoke were checked:
-  `com.abdownloadmanager.macos`, macOS 26.0, AppIcon, and an alive process.
+  `com.zjx.download`, macOS 26.0, AppIcon, and an alive process.
   The app and embedded Core framework remain universal arm64/x86_64 binaries.
 
 No full Swift test suite, full Xcode test suite, UI automation, VoiceOver,
@@ -153,7 +153,7 @@ in this job.
 Focused localization and layout closeout. Commands actually run:
 
 - `swift build` — passed.
-- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed with no warnings or errors.
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed with no warnings or errors.
 
 Bundle inspection of the resulting Release build:
 
@@ -178,13 +178,13 @@ Closeout: signed Release bundle delivered to `outputs/`.
 Commands actually run and their results:
 
 - `swift build` — passed.
-- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — exit 0, BUILD SUCCEEDED, no warnings or errors.
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — exit 0, BUILD SUCCEEDED, no warnings or errors.
 - `codesign --force --timestamp=none --options runtime --sign <Apple Development identity>` applied to the embedded framework binary, the framework bundle, and the app bundle, inner-to-outer.
 - `codesign --verify --deep --strict --verbose=2` — "valid on disk" and "satisfies its Designated Requirement".
 - `spctl -a -vv` — accepted, origin `Apple Development: guozhongeba@gmail.com (PS6ALT4AA5)`, TeamIdentifier `ZNSTKHPLY3`.
 - The app was launched from `outputs/` and the process stayed alive; a window capture was taken with `screencapture -l<windowID>`.
 
-Shipped bundle inspection (`outputs/AB Download Manager.app`):
+Shipped bundle inspection (`/Applications/zjx-download.app`):
 
 - `Contents/Resources` contains exactly `en.lproj`, `zh-Hans.lproj`, `Metadata.appintents`; no nested `Contents/Resources/Resources`.
 - `CFBundleDevelopmentRegion` is `zh-Hans`.

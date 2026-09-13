@@ -18,8 +18,8 @@
 "all_unfinished" = "全部未完成";
 "also_delete_file_from_disk" = "同时从硬盘中删除文件";
 "app.openDownloads" = "打开下载";
-"app.title" = "AB 下载管理器";
-"app_title" = "AB 下载管理器";
+"app.title" = "zjx-download";
+"app_title" = "zjx-download";
 "appearance" = "外观";
 "author" = "作者";
 "auto" = "自动";

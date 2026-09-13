@@ -1,6 +1,6 @@
-# AB Download Manager for macOS
+# zjx-download for macOS
 
-AB Download Manager is a native Swift 6 download manager for macOS 26. This
+zjx-download is a native Swift 6 download manager for macOS 26. This
 branch is intentionally macOS-only: the application uses SwiftUI/AppKit,
 URLSession, Network.framework, UserNotifications, ServiceManagement, and
 security-scoped bookmarks instead of the former Kotlin/Compose/Gradle stack.
@@ -31,15 +31,15 @@ Requires macOS 26 and Swift 6.2 or newer:
 ```sh
 swift build
 swift test
-swift run ABDownloadManager
+swift run zjx-download
 ```
 
 `swift run` starts the native executable in a GUI session. A Release app can be
 built from the Xcode project with:
 
 ```sh
-xcodebuild -project ABDownloadManager.xcodeproj \
-  -scheme ABDownloadManager \
+xcodebuild -project zjx-download.xcodeproj \
+  -scheme zjx-download \
   -configuration Release \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO build
@@ -47,7 +47,7 @@ xcodebuild -project ABDownloadManager.xcodeproj \
 
 The repository's [release workflow](.github/workflows/release.yml) builds an
 Universal (`arm64` + `x86_64`) Release app on a GitHub macOS runner, signs it
-ad-hoc, verifies the signature, and packages `AB-Download-Manager-macOS.zip`.
+ad-hoc, verifies the signature, and packages `zjx-download-macOS.zip`.
 It runs manually with
 `workflow_dispatch` and automatically for tags matching `v*`.
 
@@ -75,6 +75,6 @@ The complete source audit and feature matrix is in
 
 ## License
 
-AB Download Manager remains Apache-2.0. See [`LICENSE`](LICENSE) for copyright
+zjx-download remains Apache-2.0. See [`LICENSE`](LICENSE) for copyright
 and attribution. The translated resource strings retain their original
 localization attribution.

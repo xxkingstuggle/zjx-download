@@ -2,16 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
-<key>CFBundleDisplayName</key><string>AB Download Manager</string>
-<key>CFBundleName</key><string>AB Download Manager</string>
+<key>CFBundleDisplayName</key><string>zjx-download</string>
+<key>CFBundleName</key><string>zjx-download</string>
 <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
-<key>CFBundleIdentifier</key><string>com.abdownloadmanager.macos</string>
+<key>CFBundleIdentifier</key><string>com.zjx.download</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundleShortVersionString</key><string>1.0.0</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconName</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
-<key>NSHumanReadableCopyright</key><string>Copyright © AB Download Manager contributors. Apache-2.0.</string>
+<key>NSHumanReadableCopyright</key><string>Copyright © zjx-download contributors. Apache-2.0.</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
-<key>NSAppleEventsUsageDescription</key><string>AB Download Manager uses system integration only when enabled.</string>
+<key>NSAppleEventsUsageDescription</key><string>zjx-download uses system integration only when enabled.</string>
 </dict></plist>

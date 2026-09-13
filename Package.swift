@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "ABDownloadManager",
+    name: "zjx-download",
     defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     products: [
-        .executable(name: "ABDownloadManager", targets: ["ABDownloadManagerApp"]),
+        .executable(name: "zjx-download", targets: ["ABDownloadManagerApp"]),
         .library(name: "ABDownloadManagerCore", targets: ["ABDownloadManagerCore"]),
     ],
     targets: [
