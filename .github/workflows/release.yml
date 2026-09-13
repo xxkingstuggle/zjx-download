@@ -36,8 +36,9 @@ jobs:
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
             ARCHS='arm64 x86_64' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGN_IDENTITY='-' \
             build
 
       - name: Ad-hoc sign nested Mach-O files and app
@@ -46,30 +47,9 @@ jobs:
           APP="$DERIVED_DATA/Build/Products/Release/$APP_NAME"
           test -d "$APP"
 
-          sign_file() {
-            local path="$1"
-            if file "$path" | grep -q 'Mach-O'; then
-              codesign --force --sign - --timestamp=none "$path"
-            fi
-          }
-
-          while IFS= read -r -d '' path; do
-            sign_file "$path"
-          done < <(/usr/bin/find "$APP/Contents" -type f -print0)
-
-          # Sign the known embedded framework explicitly. Xcode can expose
-          # Contents/Frameworks through a symlink, which find does not enter.
-          FRAMEWORK="$APP/Contents/Frameworks/ABDownloadManagerCore.framework"
-          if [ -e "$FRAMEWORK" ]; then
-            echo "Signing framework: $FRAMEWORK"
-            /usr/bin/codesign --force --sign - --timestamp=none "$FRAMEWORK"
-          fi
-
-          while IFS= read -r -d '' bundle; do
-            echo "Signing extension: $bundle"
-            /usr/bin/codesign --force --sign - --timestamp=none "$bundle"
-          done < <(/usr/bin/find "$APP/Contents" \( -name '*.xpc' -o -name '*.appex' \) -print0)
-
+          # Xcode signs embedded frameworks and helpers inside-out with the
+          # same ad-hoc identity. Re-sign the outer app explicitly as the
+          # final step, then verify the complete bundle recursively.
           /usr/bin/codesign --force --sign - --timestamp=none "$APP"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 
