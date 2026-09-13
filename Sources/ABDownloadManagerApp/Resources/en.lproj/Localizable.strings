@@ -1,0 +1,10 @@
+"downloads.title" = "Downloads";
+"queues.title" = "Queues";
+"history.title" = "History";
+"settings.title" = "Settings";
+"downloads.empty.title" = "No Downloads";
+"downloads.empty.description" = "Use New Download or the clipboard monitor to add a file.";
+"newDownload.title" = "New Download";
+"newDownload.add" = "Add";
+"newDownload.cancel" = "Cancel";
+"newDownload.startImmediately" = "Start immediately";

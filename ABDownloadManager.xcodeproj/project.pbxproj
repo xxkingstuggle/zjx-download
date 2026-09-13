@@ -1,0 +1,126 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ objectVersion = 77;
+ objects = {
+/* Begin PBXBuildFile section */
+B000000000000000000010 /* SpeedLimiter.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000010; };
+B000000000000000000011 /* BatchURLPattern.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000011; };
+B000000000000000000012 /* Classification.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000012; };
+B000000000000000000066 /* ChecksumToolView.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000066; };
+B000000000000000000000 /* DownloadEngine.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000000; };
+B000000000000000000001 /* HLSDownloader.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000001; };
+B000000000000000000002 /* HTTPClient.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000002; };
+B000000000000000000003 /* QueueScheduler.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000003; };
+B000000000000000000004 /* Checksum.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000004; };
+B000000000000000000005 /* DownloadPart.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000005; };
+B000000000000000000006 /* DownloadTask.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000006; };
+B000000000000000000007 /* Policies.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000007; };
+B000000000000000000008 /* Queue.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000008; };
+B000000000000000000009 /* ResourceInfo.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000009; };
+B00000000000000000000A /* AppStateStore.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000A; };
+B00000000000000000000B /* FolderBookmarkStore.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B; };
+B00000000000000000000C /* RESTService.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000C; };
+B00000000000000000000D /* SecureUpdatePolicy.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000D; };
+B00000000000000000000E /* AppSettings.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E; };
+B00000000000000000000F /* FileUtilities.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000F; };
+B000000000000000000064 /* ABDownloadManagerApp.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000064; };
+B000000000000000000065 /* ClipboardMonitor.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000065; };
+B0000000000000000000C8 /* IntegrationTests.swift */ = {isa = PBXBuildFile; fileRef = A0000000000000000000C8; };
+B0000000000000000000C9 /* LocalHTTPFixture.swift */ = {isa = PBXBuildFile; fileRef = A0000000000000000000C9; };
+B0000000000000000000CA /* ModelTests.swift */ = {isa = PBXBuildFile; fileRef = A0000000000000000000CA; };
+A00000000000000000000001 /* Core sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101; };
+A00000000000000000000002 /* App sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000102; };
+A00000000000000000000003 /* Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103; };
+A00000000000000000000004 /* Assets */ = {isa = PBXBuildFile; fileRef = A00000000000000000000104; };
+A00000000000000000000005 /* Test sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000108; };
+A00000000000000000000006 /* Core framework app */ = {isa = PBXBuildFile; fileRef = A00000000000000000000106; };
+A00000000000000000000007 /* Core framework test */ = {isa = PBXBuildFile; fileRef = A00000000000000000000106; };
+A00000000000000000000008 /* AppIntents */ = {isa = PBXBuildFile; fileRef = A00000000000000000000110; };
+/* End PBXBuildFile section */
+/* Begin PBXFileReference section */
+A000000000000000000010 /* SpeedLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/SpeedLimiter.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000011 /* BatchURLPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/BatchURLPattern.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000012 /* Classification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Classification.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000066 /* ChecksumToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ChecksumToolView.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000000 /* DownloadEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/DownloadEngine.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000001 /* HLSDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/HLSDownloader.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000002 /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/HTTPClient.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000003 /* QueueScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/QueueScheduler.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000004 /* Checksum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Checksum.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000005 /* DownloadPart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DownloadPart.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000006 /* DownloadTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DownloadTask.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000007 /* Policies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Policies.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000008 /* Queue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Queue.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000009 /* ResourceInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/ResourceInfo.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000A /* AppStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Persistence/AppStateStore.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000B /* FolderBookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/FolderBookmarkStore.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000C /* RESTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/RESTService.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000D /* SecureUpdatePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/SecureUpdatePolicy.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000E /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Settings/AppSettings.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000F /* FileUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Utilities/FileUtilities.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000064 /* ABDownloadManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ABDownloadManagerApp.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000065 /* ClipboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ClipboardMonitor.swift; sourceTree = SOURCE_ROOT; };
+A0000000000000000000C8 /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/IntegrationTests.swift; sourceTree = SOURCE_ROOT; };
+A0000000000000000000C9 /* LocalHTTPFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/LocalHTTPFixture.swift; sourceTree = SOURCE_ROOT; };
+A0000000000000000000CA /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/ModelTests.swift; sourceTree = SOURCE_ROOT; };
+A00000000000000000000101 /* CoreSources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/ABDownloadManagerCore; sourceTree = SOURCE_ROOT; };
+A00000000000000000000102 /* AppSources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/ABDownloadManagerApp; sourceTree = SOURCE_ROOT; };
+A00000000000000000000103 /* Resources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/ABDownloadManagerApp/Resources; sourceTree = SOURCE_ROOT; };
+A00000000000000000000104 /* Assets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Sources/ABDownloadManagerApp/Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
+A00000000000000000000105 /* Info */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/ABDownloadManagerApp/Info.plist; sourceTree = SOURCE_ROOT; };
+A00000000000000000000106 /* Core product */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ABDownloadManagerCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+A00000000000000000000107 /* App product */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AB Download Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+A00000000000000000000108 /* TestSources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Tests/ABDownloadManagerTests; sourceTree = SOURCE_ROOT; };
+A00000000000000000000110 /* AppIntents framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
+A00000000000000000000109 /* Test product */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle.xctest; includeInIndex = 0; path = ABDownloadManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+/* Begin PBXGroup section */
+A00000000000000000000201 = {isa = PBXGroup; children = (A00000000000000000000105,); sourceTree = SOURCE_ROOT; };
+A00000000000000000000202 = {isa = PBXGroup; children = (A00000000000000000000106,A00000000000000000000107,A00000000000000000000109,); name = Products; sourceTree = BUILT_PRODUCTS_DIR; };
+A00000000000000000000203 = {isa = PBXGroup; children = (A00000000000000000000103,A00000000000000000000104,); name = Resources; path = Sources/ABDownloadManagerApp/Resources; sourceTree = SOURCE_ROOT; };
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+A00000000000000000000301 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000501; buildPhases = (A00000000000000000000401,); dependencies = (); name = ABDownloadManagerCore; productName = ABDownloadManagerCore; productReference = A00000000000000000000106; productType = "com.apple.product-type.framework"; };
+A00000000000000000000303 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000504; buildPhases = (A00000000000000000000405,A00000000000000000000406); dependencies = (A00000000000000000000603,); name = ABDownloadManagerTests; productName = ABDownloadManagerTests; productReference = A00000000000000000000109; productType = "com.apple.product-type.bundle.unit-test"; };
+A00000000000000000000302 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000502; buildPhases = (A00000000000000000000402,A00000000000000000000403,A00000000000000000000404,A00000000000000000000407); dependencies = (A00000000000000000000601,); name = "AB Download Manager"; productName = "AB Download Manager"; productReference = A00000000000000000000107; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+A00000000000000000000701 = {isa = PBXProject; attributes = { LastUpgradeCheck = 2650; TargetAttributes = { A00000000000000000000301 = {CreatedOnToolsVersion = 26.5;}; A00000000000000000000302 = {CreatedOnToolsVersion = 26.5;};};}; buildConfigurationList = A00000000000000000000503; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en,Base,); mainGroup = A00000000000000000000201; productRefGroup = A00000000000000000000202; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000301,A00000000000000000000302,A00000000000000000000303,); };
+/* End PBXProject section */
+/* Begin PBXBuildPhase section */
+A00000000000000000000401 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000,B000000000000000000001,B000000000000000000010,B000000000000000000011,B000000000000000000012,B000000000000000000002,B000000000000000000003,B000000000000000000004,B000000000000000000005,B000000000000000000006,B000000000000000000007,B000000000000000000008,B000000000000000000009,B00000000000000000000A,B00000000000000000000B,B00000000000000000000C,B00000000000000000000D,B00000000000000000000E,B00000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000402 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000064,B000000000000000000065,B000000000000000000066); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000403 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000003,A00000000000000000000004,); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000404 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000006,A00000000000000000000008,); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000405 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B0000000000000000000C8,B0000000000000000000C9,B0000000000000000000CA); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000406 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000007,); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000407 = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = (A00000000000000000000006,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXBuildPhase section */
+/* Begin XCBuildConfiguration section */
+A00000000000000000000801 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerCore; PRODUCT_BUNDLE_IDENTIFIER = com.abdownloadmanager.macos.core; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; DEFINES_MODULE = YES; ENABLE_TESTABILITY = YES; LD_DYLIB_INSTALL_NAME = "@rpath/ABDownloadManagerCore.framework/Versions/A/ABDownloadManagerCore"; ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
+A00000000000000000000802 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerCore; PRODUCT_BUNDLE_IDENTIFIER = com.abdownloadmanager.macos.core; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; DEFINES_MODULE = YES; ALWAYS_SEARCH_USER_PATHS = NO; LD_DYLIB_INSTALL_NAME = "@rpath/ABDownloadManagerCore.framework/Versions/A/ABDownloadManagerCore"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
+A00000000000000000000803 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = "AB Download Manager"; PRODUCT_BUNDLE_IDENTIFIER = com.abdownloadmanager.macos; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; INFOPLIST_FILE = Sources/ABDownloadManagerApp/Info.plist; CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; ENABLE_APP_INTENTS_METADATA = NO; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
+A00000000000000000000804 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = "AB Download Manager"; PRODUCT_BUNDLE_IDENTIFIER = com.abdownloadmanager.macos; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; INFOPLIST_FILE = Sources/ABDownloadManagerApp/Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
+A00000000000000000000805 = {isa = XCBuildConfiguration; buildSettings = { SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
+A00000000000000000000807 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerTests; PRODUCT_BUNDLE_IDENTIFIER = com.abdownloadmanager.macos.tests; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; GENERATE_INFOPLIST_FILE = YES; BUNDLE_LOADER = "$(TEST_HOST)"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
+A00000000000000000000808 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerTests; PRODUCT_BUNDLE_IDENTIFIER = com.abdownloadmanager.macos.tests; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; GENERATE_INFOPLIST_FILE = YES; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
+A00000000000000000000806 = {isa = XCBuildConfiguration; buildSettings = { SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+A00000000000000000000501 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000801,A00000000000000000000802,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+A00000000000000000000502 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000803,A00000000000000000000804,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+A00000000000000000000503 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000805,A00000000000000000000806,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+A00000000000000000000504 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000807,A00000000000000000000808,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+/* Begin PBXTargetDependency section */
+A00000000000000000000601 = {isa = PBXTargetDependency; target = A00000000000000000000301; targetProxy = A00000000000000000000602; };
+/* End PBXTargetDependency section */
+/* Begin PBXContainerItemProxy section */
+A00000000000000000000603 = {isa = PBXTargetDependency; target = A00000000000000000000301; targetProxy = A00000000000000000000604; };
+A00000000000000000000604 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000701; proxyType = 1; remoteGlobalIDString = A00000000000000000000301; remoteInfo = ABDownloadManagerCore; };
+A00000000000000000000602 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000701; proxyType = 1; remoteGlobalIDString = A00000000000000000000301; remoteInfo = ABDownloadManagerCore; };
+/* End PBXContainerItemProxy section */
+ };
+ rootObject = A00000000000000000000701;
+}

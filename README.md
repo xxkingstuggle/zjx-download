@@ -1,180 +1,58 @@
-<div align="center">
-  <a href="https://abdownloadmanager.com" target="_blank">
-    <img width="180" src="assets/logo/app_logo_with_background.svg" alt="AB Download Manager Logo">
-  </a>
-</div>
-<h1 align="center">AB Download Manager</h1>
-<p align="center">
-    <a href="https://github.com/amir1376/ab-download-manager/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/amir1376/ab-download-manager?color=greenlight&label=latest%20release"></a>
-    <a href="https://abdownloadmanager.com"><img alt="AB Download Manager Website" src="https://img.shields.io/badge/project-website-purple?&labelColor=gray"></a>
-    <a href="https://t.me/abdownloadmanager"><img alt="Telegram Channel" src="https://img.shields.io/badge/Telegram-Channel-blue?logo=telegram&labelColor=gray"></a>
-    <a href="https://t.me/abdownloadmanager_discussion"><img alt="Telegram Group" src="https://img.shields.io/badge/Telegram-Group-blue?logo=telegram&labelColor=gray"></a>
-    <a href="https://crowdin.com/project/ab-download-manager"><img alt="Crowdin" src="https://badges.crowdin.net/ab-download-manager/localized.svg"></a>
-</p>
+# AB Download Manager for macOS
 
-<a href="https://abdownloadmanager.com" target="_blank">
-    <img alt="AB Download Manager Banner" src="assets/banners/app_banner.png"/>
-</a>
-
-## Introduction
-
-[AB Download Manager](https://abdownloadmanager.com) is a desktop app that helps you manage and organize your downloads more efficiently than ever before.
+AB Download Manager is a native Swift 6 download manager for macOS 26. This
+branch is intentionally macOS-only: the application uses SwiftUI/AppKit,
+URLSession, Network.framework, UserNotifications, ServiceManagement, and
+security-scoped bookmarks instead of the former Kotlin/Compose/Gradle stack.
 
 ## Features
 
-- ⚡️ Faster Download Speed
-- ⏰ Queues and Schedulers
-- 🌐 Browser Extensions
-- 💻 Multiplatform (Android / Windows / Linux / Mac)
-- 🌙 Multiple Themes (Dark/Light/Black and more) with modern UI
-- ❤️ Free and Open Source
+- HTTP(S) downloads with redirects, headers, cookies, Basic auth, proxy
+  configuration, safe TLS defaults, ETag/Last-Modified resume semantics,
+  retry, pause, cancel, checksums, and atomic assembly.
+- Concurrent HTTP Range parts with a no-Range fallback and crash/restart
+  recovery.
+- Finite HLS VOD/master playlists, including AES-128 segments and resumable
+  segment sidecars.
+- Queues with CRUD, ordering, priority, concurrency limits, weekday schedules
+  (including overnight windows), history, and global/task speed limits.
+- SwiftUI `NavigationSplitView` window, inspector, batch-add sheet, settings,
+  keyboard commands, menu bar extra, clipboard monitoring, notifications, and
+  accessibility-aware macOS 26 Liquid Glass.
+- Loopback REST compatibility at `127.0.0.1:15151`: `POST /add`, `GET
+  /queues`, `POST /start-headless-download`, and `POST /ping`. Send `X-Api-Key`
+  when API authentication is enabled. The service accepts both the legacy
+  array body and the newer object/envelope form.
 
-Please visit [Project Website](https://abdownloadmanager.com) for more info.
+## Build and test
 
-## Installation
+Requires macOS 26 and Swift 6.2 or newer:
 
-<a href="https://github.com/amir1376/ab-download-manager/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/amir1376/ab-download-manager?color=greenlight&label=latest%20release"></a>
-
-### Download and Install the App
-
-<a href="https://abdownloadmanager.com"><img src="https://img.shields.io/badge/Official%20Website-897BFF?logo=abdownloadmanager&logoColor=fff&style=flat-square" alt="Official Website" height="32" /></a>
-<a href="https://github.com/amir1376/ab-download-manager/releases/latest"><img src="https://img.shields.io/badge/GitHub%20Releases-2a2f36?logo=github&logoColor=fff&style=flat-square" alt="GitHub Releases" height="32" /></a>
-
-#### Installation script (Linux)
-
-The recommended way to install the app on Linux
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/amir1376/ab-download-manager/master/scripts/install.sh)
+```sh
+swift build
+swift test
+swift run ABDownloadManager
 ```
 
-#### Winget or Scoop (for Windows)
+`swift run` starts the native executable in a GUI session. To make a signed
+`.app`, open the package in Xcode, select the `ABDownloadManager` executable
+product, set the signing team, and archive it. This repository does not claim
+signing, notarization, or release publication.
 
-**winget**:
+## Data and safety
 
-```bash
-winget install amir1376.ABDownloadManager
-```
+State is stored atomically under
+`~/Library/Application Support/ABDownloadManager/state.json`; folder
+permissions are represented by security-scoped bookmarks. The default update
+channel is disabled and the update policy requires HTTPS and a verified SHA-256
+before a host application may offer an artifact. Partial files remain until a
+successful atomic merge unless the cancellation setting requests deletion.
 
-**scoop**:
+The complete source audit and feature matrix is in
+[`docs/macos-native-rewrite-plan.md`](docs/macos-native-rewrite-plan.md).
 
-```bash
-scoop install extras/abdownloadmanager
-```
+## License
 
-#### Homebrew (for macOS & Linux)
-
-```bash
-brew tap amir1376/tap && brew install --cask ab-download-manager
-```
-
-> ⚠️ **Warning:** This software is NOT on Google Play or other app stores unless listed here. Any version **claiming to be or related to this project** should be considered SCAM and UNSAFE.
-
-For alternative installation methods, uninstallation instructions, and more details, please refer to the [wiki](https://github.com/amir1376/ab-download-manager/wiki/) page.
-
-### Browser Extensions
-
-<a href="https://addons.mozilla.org/en-US/firefox/addon/ab-download-manager/"><img src="https://img.shields.io/amo/v/ab-download-manager?label=Firefox&logo=firefoxbrowser" alt="Firefox Add-ons Version"></a>
-<a href="https://chromewebstore.google.com/detail/bbobopahenonfdgjgaleledndnnfhooj"> <img src="https://img.shields.io/chrome-web-store/v/bbobopahenonfdgjgaleledndnnfhooj?label=Chrome&logo=googlechrome" alt="Chrome Web Store Version"></a>
-
-You can download the browser extension to integrate the app with your browser.
-
-<p align="left">
-<a href="https://addons.mozilla.org/firefox/addon/ab-download-manager/">
-    <picture>
-        <img alt="Chrome Extension" src="./assets/banners/firefox-extension.png" height="48">
-    </picture>
-</a>
-<a href="https://chromewebstore.google.com/detail/bbobopahenonfdgjgaleledndnnfhooj">
-    <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="./assets/banners/chrome-extension_dark.png" height="48">
-        <source media="(prefers-color-scheme: light)" srcset="./assets/banners/chrome-extension_light.png" height="48">
-        <img alt="Chrome Extension" src="./assets/banners/chrome-extension_light.png" height="48">
-    </picture>
-</a>
-</p>
-
-## Screenshots
-
-<div align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/screenshots/app-home_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/screenshots/app-home_light.png">
-  <img alt="App Home Section" src="./assets/screenshots/app-home_dark.png">
-</picture>
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/screenshots/app-download_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/screenshots/app-download_light.png">
-  <img alt="App Download Section" src="./assets/screenshots/app-download_dark.png">
-</picture>
-</div>
-
-## Community
-
-- 📢 [Telegram Channel](https://t.me/abdownloadmanager) – News, announcements, and release updates.
-- 💬 [Telegram Group](https://t.me/abdownloadmanager_discussion) – Get help, report bugs, suggest features, and discuss
-  the project with the community.
-
-## Repositories And Source Code
-
-There are multiple repositories related to the **AB Download Manager** project:
-
-| Repository                                                                                 | Description                                                                   |
-|--------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| [Main Application](https://github.com/amir1376/ab-download-manager) (You are here)         | Contains the  **Application** that runs on your  **device**                   |
-| [Browser Integration](https://github.com/amir1376/ab-download-manager-browser-integration) | Contains the **Browser Extension** to be installed on your  **browser**       |
-| [Website](https://github.com/amir1376/ab-download-manager-website)                         | Contains the **AB Download Manager** [website](https://abdownloadmanager.com) |
-
-I've spent a lot of time to create this project.
-
-If you like my work, please consider giving it a ⭐ — thanks! ❤️
-
-## Bug Report
-
-If you notice any bugs in the source code, please report them via the `GitHub Issues` section.
-
-## Build From Source
-
-To compile and test the desktop app on your local machine,
-follow these steps:
-
-1. Clone the project.
-2. Download and extract the [JBR](https://github.com/JetBrains/JetBrainsRuntime/releases), and make it available by either:
-    
-    - Adding it to your `PATH`, or
-    - Setting the `JAVA_HOME` environment variable to its installation path.
-  
-3. Navigate to the project directory, open your terminal and execute the following command:
-
-    ```bash
-    ./gradlew createReleaseFolderForCi
-    ```
-
-4. The output will be available at:
-
-    ```
-    <project_dir>/build/ci-release
-    ```
-
-> **Note**. This project is compiled and published by GitHub actions [here](./.github/workflows/publish.yml), so if you
-> faced any problem you can check that too.
-
-## Translations
-
-<a href="https://crowdin.com/project/ab-download-manager"><img alt="Crowdin" src="https://badges.crowdin.net/ab-download-manager/localized.svg"></a>
-
-If you’d like to help translate AB Download Manager into another language, or improve existing translations, you can do
-so on Crowdin. Here’s how:
-
-- Visit the project in [Crowdin](https://crowdin.com/project/ab-download-manager)
-- Please DO NOT submit translations via pull requests.
-- If you want to add a new language, please see [this](https://github.com/amir1376/ab-download-manager/issues/144).
-
-## Contribution
-
-If you want to contribute to this project, please read [Contributing Guide](CONTRIBUTING.md) first.
-
-## Support the Project
-
-If you'd like to support the project, you can find details on how to donate in the [DONATE.md](DONATE.md) file.
+AB Download Manager remains Apache-2.0. See [`LICENSE`](LICENSE) for copyright
+and attribution. The translated resource strings retain their original
+localization attribution.

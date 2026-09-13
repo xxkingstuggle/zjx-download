@@ -1,11 +1,15 @@
-# Ignore Gradle project-specific cache directory
-.gradle
-.kotlin
-
-# Ignore Gradle build output directory
-build
-.idea
-local.properties
-
-# Ignore android keystores
-*.jks
+# Swift Package Manager and Xcode output
+.build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.app/
+*.dSYM/
+# Local worker/session and user data
+.agent-work/
+*.abpart
+*.abpart.*
+# Local signing and machine configuration
+.xcconfig.local
+*.p12
+*.mobileprovision

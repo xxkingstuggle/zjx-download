@@ -1,0 +1,149 @@
+# AB Download Manager macOS native rewrite matrix
+
+This matrix is the audit record for the Swift 6/macOS 26 rewrite. The source
+paths in the evidence column refer to the upstream tree at
+`afc57634b3c121c6415213242b2b600cccc6fd6e`; they are retained as evidence,
+not as runtime code. Verification is local and does not use a public server.
+
+| Original capability | Source evidence | Native replacement | Test/verification | Status |
+|---|---|---|---|---|
+| HTTP task model and lifecycle | `downloader/core/.../downloaditem/http/HttpDownloadItem.kt`, `HttpDownloadJob.kt` | `DownloadTask`, `DownloadEngine` actor | `IntegrationTests.testHTTPProbeAndRangeDownload` | Implemented |
+| HEAD/range probing, redirects | `downloader/core/.../connection/HttpDownloaderClient.kt`, `part/HttpPartDownloader.kt` | `HTTPClient.probe`, URLSession default redirect handling | local fixture range and redirect tests | Implemented |
+| Multi-connection ranges and merge | `downloader/core/.../part/RangedPart.kt`, `Parts.kt`, `TransactionalFileSaver.kt` | persisted `DownloadPart` ranges, concurrent task group, atomic merge | local loopback range assembly test | Implemented |
+| Dynamic part sizing | `DefaultAppSettings.dynamicPartCreation`, `PartSplitSupport.kt` | deterministic range splitting from configured connection count | range test asserts part state | Implemented |
+| No-Range fallback | `PartSplitSupport.kt`, `HttpDownloader.kt` | single URLSession response written to `.abpart` | local `/norange` test | Implemented |
+| Pause/resume/cancel/retry | `Downloader.kt`, `PartDownloadStatus.kt`, exception/retry classes | actor control state, retry backoff, durable part offsets | engine state transitions; cancellation API | Partial (deterministic interruption matrix remains) |
+| ETag/Last-Modified and If-Range | `FileChangedException.kt`, `HttpResponseInfo.kt` | `ResourceValidator`, If-Range, resource-change rejection | validator model tests and range requests | Implemented |
+| Crash/restart recovery | `DownloadListFileStorage.kt`, `PartListFileStorage.kt` | atomic JSON `AppStateStore`, active states reopened as paused | `testPersistenceRecoversActiveTasks` | Implemented |
+| HLS VOD/master playlists | `downloaditem/hls/HLSDownloader.kt`, `HLSPartDownloader.kt` | `HLSDownloader`: master selection, media segments, AES-128 CBC, sidecar resume; plain segments use URLSession byte streaming and AES-128 remains bounded to one encrypted segment | local two-segment HLS fixture | Partial (pause/cancel stream test remains) |
+| HLS live stream boundary | HLS job has no finite completion for live playlists | reject live playlists instead of creating a never-ending file task | explicit `unsupportedHLS` error | Deliberate boundary |
+| SHA-1/SHA-256/SHA-512/MD5 checksums | `shared/.../FileChecksum`, `HashUtil` references and downloader checksum config | `ChecksumCalculator` streaming CryptoKit/RFC1321 MD5 | checksum regression test | Implemented |
+| Queues CRUD/order/start-stop | `downloader/core/.../queue/QueueManager.kt`, desktop queue pages | `AppStateStore` queue CRUD and SwiftUI QueueList | queue model and persistence tests | Implemented |
+| Queue concurrency/global concurrency | `DownloadQueue.kt`, `QueueManager.kt`, settings defaults | `QueueScheduler` actor plus engine limits | scheduler code path; local queue integration available | Partial (combined multi-task fixture remains) |
+| Recurring and cross-midnight schedules | `queue/ScheduleTimes.kt`, queue UI | `QueueSchedule.isOpen`, weekday and overnight handling | schedule boundary XCTest | Implemented |
+| History | DB/storage and home/history UI sources | `DownloadRecord` and durable history list | completion/failure append path | Implemented |
+| Categories and automatic classification | `shared/.../util/category/Category.kt`, `CategoryManager.kt`, desktop category pages | Codable extension/host rules, default folder, AppStateStore CRUD, CategoriesView, automatic classification and manual category picker | `ModelTests.testCategoryRulesAndLegacyStateCompatibility`; manual UI checklist | Partial (edit UI and full automatic-rule matrix remain) |
+| Per-host defaults | `shared/.../perhostsettings/PerHostSettingsItem.kt`, `PerHostSettingsManager.kt`, desktop per-host pages | `HostOverride`, persisted CRUD, matching host application, Settings host editor | `ModelTests.testHostOverrideMatchesCaseInsensitively`; manual UI checklist | Partial (full task execution matrix remains) |
+| Task editing and file actions | desktop download detail/actions and `FileNameUtil.kt` | EditTaskSheet, safe FileUtilities rename/move, Open and Reveal actions | manual UI checklist | Partial (manual UI verification remains) |
+| Batch URL wildcard generation | `shared/.../batchdownload/BaseBatchDownloadComponent.kt`, desktop `BatchDownnload.kt` | `BatchURLPattern` plus pattern fields/preview in NewDownloadSheet | `testBatchURLPatternExpansionAndLimit`; manual UI checklist | Partial (advanced batch options/manual flow remain) |
+| Checksum utility UI | desktop `pages/checksum/DesktopFileChecksumComponent.kt`, `FileChecksumPage.kt` | asynchronous `ChecksumToolView` with algorithm selection, progress and copy | checksum engine tests; manual UI checklist | Partial (manual UI verification remains) |
+| Queue schedule editor and completion actions | desktop queue pages and `getOnQueueEventActions.kt` | QueueEditSheet with weekdays/time/overnight schedule and confirmed QueueCompletionAction model | `testQueueScheduleRoundTripIncludingOvernightWindow`; manual confirmation checklist | Partial (power action execution intentionally not implemented) |
+| Filename/path safety and conflicts | `destination/IncompleteFileUtil.kt`, `FileNameUtil.kt` | `FileUtilities` sanitization, containment, rename/overwrite/skip | path/conflict unit coverage | Implemented |
+| Security-scoped folder authorization | desktop path/storage and platform file utilities | `FolderBookmarkStore` bookmark persistence and scoped access | bookmark API isolated for macOS UI | Partial (full relaunch scope test remains) |
+| Proxy and cookies | `ProxyDatastoreStorage.kt`, downloader host config | URLSession proxy dictionary, shared cookie storage, custom headers | local headers/cookie test | Implemented |
+| Basic auth | HTTP credentials and integration source model | caller-supplied Authorization headers preserved | local auth fixture test | Implemented |
+| TLS policy | `ignoreSSLCertificates` setting | default URLSession trust; explicit opt-in trust delegate | safe default is code-level invariant | Implemented |
+| REST `/add` | `integration/server/.../Endpoints.kt`, `AddDownloadsFromIntegration.kt` | loopback `RESTService`, array and envelope decoding | `testRESTCompatibility` | Implemented |
+| REST `/queues` | `Endpoints.kt`, `ApiQueueModel.kt` | JSON queue projection | REST test | Implemented |
+| REST `/start-headless-download` | `Endpoints.kt`, `NewDownloadTask.kt` | nested source/folder/name/queue/category payload | REST test | Implemented |
+| REST `/ping`, API key, CORS | `Endpoints.kt`, `IntegrationSettings.kt`, translated setting text | 127.0.0.1 listener, X-Api-Key, OPTIONS/CORS headers | REST test | Implemented |
+| Clipboard import | `shared/.../ClipboardUtil.*` | AppKit pasteboard monitor, URL filtering, batch add | app lifecycle code; manual UI boundary | Implemented |
+| Notifications | `NotificationSender.kt`, notification settings | UserNotifications completion/failure requests | app notification service path | Implemented |
+| Menu bar/tray | `desktop/app/.../Tray.kt` | SwiftUI `MenuBarExtra` | app target build | Implemented |
+| Login item | `shared/.../AutoStartManager.kt` | `SMAppService.mainApp` on saved setting | app target build; requires bundled app entitlement at install | Implemented |
+| Settings migration/persistence | `DefaultAppSettings.kt`, desktop settings storage | Codable `AppSettings`, legacy UserDefaults import, atomic state | persistence test | Implemented |
+| Secure updates | `shared/updater/...` GitHub updater sources | opt-in HTTPS manifest/digest policy; disabled by default for fork; no unsigned install | `SecureUpdatePolicy` unit surface | Implemented safely |
+| Localized strings | `shared/resources/.../locales/*.properties` (27 locales) | generated Apple `.lproj/Localizable.strings` resources | SPM resource compilation | Partial (critical English/Chinese keys wired; full UI review remains) |
+| Liquid Glass/accessibility | Compose theme and desktop settings UI | macOS 26 `.glassEffect`, centralized fallback, reduce transparency/motion, labels, keyboard commands, dynamic system fonts | app target build and source audit | Partial (manual VoiceOver/UI automation remains) |
+| App packaging | Gradle desktop packaging workflows | Native `ABDownloadManager.xcodeproj` application target, shared scheme, Info.plist, bundle identifier, asset catalog, and SwiftPM core | `xcodebuild ... build CODE_SIGNING_ALLOWED=NO`; inspect `.app` bundle; `xcodebuild ... test` | Implemented (unsigned local bundle) |
+
+## Verification commands
+
+```sh
+swift build
+swift test
+swift run ABDownloadManager
+```
+
+`swift build`, `swift test`, the shared Xcode scheme build/test, and a bounded standalone `.app` launch are the repeatable checks. `swift run` requires
+a GUI-capable logged-in macOS session. The loopback XCTest fixture is the only
+network server used by tests.
+
+## Explicit non-goals / boundaries
+
+* Live HLS has no finite file boundary and is rejected with a user-visible
+  error; VOD and master playlists are supported.
+* A Swift Package executable produces a native macOS executable. Creating a
+  signed `.app`, login-item registration, notarization, and VoiceOver UI
+  automation require Xcode signing/bundle context and are not claimed by the
+  package-only checks.
+
+## Latest verification record (2026-09-13)
+
+- `swift build` — passed.
+- `swift test` — passed, 16 tests / 0 failures (including large deterministic
+  loopback range assembly, REST auth/options/queues/preflight, scheduler intent,
+  path safety, checksum, shared limiter, part reconciliation, cancellation cleanup,
+  bookmark reload, and batch pattern expansion).
+- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed; output is a real universal `AB Download Manager.app`.
+- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO` — passed, 16 tests / 0 failures.
+- Bundle inspection confirmed `CFBundleIdentifier=com.abdownloadmanager.macos`,
+  `CFBundleDisplayName=AB Download Manager`, `CFBundleIconName=AppIcon`, and
+  `LSMinimumSystemVersion=26.0`.
+- Placeholder scan in native sources/tests/docs returned no matches.
+- Kotlin/Java/Gradle/Linux/Windows/Android residue scan returned no matches;
+  the former Linux install/uninstall scripts are removed.
+
+- A bounded launch of the built bundle remained alive for 2 seconds with its embedded Core framework; the process was then terminated by the test harness.
+
+## Remaining implementation gaps
+
+The matrix intentionally does not overstate completion. Category management,
+host override editing, safe stopped/completed task editing, batch wildcard
+creation, checksum utility, and queue schedule editing now have native UI
+paths, but remain manually unverified. The engine still lacks a deterministic
+forced-disconnect/retry fixture and a full HLS pause/resume end-to-end test.
+AES-encrypted HLS segments use bounded one-segment buffering by design; plain
+segments use URLSession byte streaming. A combined two-task end-to-end limiter
+fixture remains. Signed/notarized distribution and manual VoiceOver verification
+are outside the unsigned local build. These are tracked as partial rather than
+complete.
+
+## Job-007 verification record (2026-09-13)
+
+Focused checks run after the management UI changes:
+
+- `swift test --filter ModelTests` — passed, 9 tests / 0 failures.
+- `swift test --filter IntegrationTests.testHTTPProbeAndRangeDownload` — passed, 1 / 0.
+- `swift test --filter IntegrationTests.testRESTCompatibility` — passed, 1 / 0.
+- `swift build` — passed.
+- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed; new `Classification.swift` and `ChecksumToolView.swift` are included in the Xcode source phases.
+- No complete Xcode test run was repeated in this job, per the minimal-test constraint. The prior complete Xcode run remains recorded above as 16 tests / 0 failures.
+
+The app target still produces the unsigned universal bundle at
+`~/Library/Developer/Xcode/DerivedData/ABDownloadManager-*/Build/Products/Debug/AB Download Manager.app`.
+
+## Manual acceptance checklist (not run by automation)
+
+- Add one URL and a multiline batch; verify destination, headers, checksum,
+  queue/category and conflict policy controls.
+- Create/edit/delete/reorder categories; verify extension and host rules,
+  category default folder, automatic classification, and manual override.
+- Create a per-host override; add a matching URL and verify headers,
+  connections/speed/defaults are applied.
+- Pause/resume/cancel a slow download; verify partial files and restart behavior.
+- Edit a stopped task; verify safe rename, URL, directory, queue/category and
+  request settings. Open and reveal a completed file.
+- Use the checksum sheet with each algorithm and copy its output.
+- Edit queue weekdays and HH:mm bounds, including an overnight window; confirm
+  any non-`none` completion action twice before enabling it.
+- Exercise HLS VOD, AES-128, and HLS sidecar recovery with a local fixture.
+- Select a sandbox-protected folder and relaunch the app to verify bookmark
+  authorization is retained; no signed/notarized build was used here.
+- Check VoiceOver labels, keyboard navigation, Light/Dark appearance, and
+  Reduce Transparency/Reduce Motion manually. No VoiceOver/XCUITest claim is
+  made by this record.
+
+## Job-008 verification record (2026-09-13)
+
+- `swift test --filter ModelTests` — passed, 10 tests / 0 failures. This includes category rules, legacy state decoding, host override Codable/application, bookmark reload, batch expansion, queue schedule round-trip, proxy credentials, path conflict, and shared limiter checks.
+- `swift test --filter IntegrationTests.testHLSAssembly` — passed, 1 test / 0 failures; this exercises the unencrypted HLS streaming path against the loopback fixture.
+- `swift build` — passed.
+- `xcodebuild -project ABDownloadManager.xcodeproj -scheme ABDownloadManager -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — passed after all Job-008 source changes.
+- Bundle metadata and a bounded 2-second standalone launch smoke were checked:
+  `com.abdownloadmanager.macos`, macOS 26.0, AppIcon, and an alive process.
+  The app and embedded Core framework remain universal arm64/x86_64 binaries.
+
+No full Swift test suite, full Xcode test suite, UI automation, VoiceOver,
+public-network download, signing, notarization, or release operation was run
+in this job.
