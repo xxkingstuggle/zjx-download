@@ -35,7 +35,7 @@ jobs:
             -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
-            ARCHS='arm64' \
+            ARCHS='arm64 x86_64' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             build

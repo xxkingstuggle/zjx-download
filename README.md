@@ -46,8 +46,9 @@ xcodebuild -project ABDownloadManager.xcodeproj \
 ```
 
 The repository's [release workflow](.github/workflows/release.yml) builds an
-arm64 Release app on a GitHub macOS runner, signs it ad-hoc, verifies the
-signature, and packages `AB-Download-Manager-macOS.zip`. It runs manually with
+Universal (`arm64` + `x86_64`) Release app on a GitHub macOS runner, signs it
+ad-hoc, verifies the signature, and packages `AB-Download-Manager-macOS.zip`.
+It runs manually with
 `workflow_dispatch` and automatically for tags matching `v*`.
 
 ### 安装
