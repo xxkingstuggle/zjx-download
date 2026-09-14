@@ -7,6 +7,7 @@
 B000000000000000000010 /* SpeedLimiter.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000010; };
 B000000000000000000011 /* BatchURLPattern.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000011; };
 B000000000000000000012 /* Classification.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000012; };
+B000000000000000000013 /* TaskSelection.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000013; };
 B000000000000000000066 /* ChecksumToolView.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000066; };
 B000000000000000000000 /* DownloadEngine.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000000; };
 B000000000000000000001 /* HLSDownloader.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000001; };
@@ -43,6 +44,7 @@ A00000000000000000000009 /* Localizable.strings */ = {isa = PBXBuildFile; fileRe
 A000000000000000000010 /* SpeedLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/SpeedLimiter.swift; sourceTree = SOURCE_ROOT; };
 A000000000000000000011 /* BatchURLPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/BatchURLPattern.swift; sourceTree = SOURCE_ROOT; };
 A000000000000000000012 /* Classification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Classification.swift; sourceTree = SOURCE_ROOT; };
+A000000000000000000013 /* TaskSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/TaskSelection.swift; sourceTree = SOURCE_ROOT; };
 A000000000000000000066 /* ChecksumToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ChecksumToolView.swift; sourceTree = SOURCE_ROOT; };
 A000000000000000000000 /* DownloadEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/DownloadEngine.swift; sourceTree = SOURCE_ROOT; };
 A000000000000000000001 /* HLSDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/HLSDownloader.swift; sourceTree = SOURCE_ROOT; };
@@ -93,7 +95,7 @@ A00000000000000000000302 = {isa = PBXNativeTarget; buildConfigurationList = A000
 A00000000000000000000701 = {isa = PBXProject; attributes = { LastUpgradeCheck = 2650; TargetAttributes = { A00000000000000000000301 = {CreatedOnToolsVersion = 26.5;}; A00000000000000000000302 = {CreatedOnToolsVersion = 26.5;};};}; buildConfigurationList = A00000000000000000000503; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en,Base,"zh-Hans",); mainGroup = A00000000000000000000201; productRefGroup = A00000000000000000000202; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000301,A00000000000000000000302,A00000000000000000000303,); };
 /* End PBXProject section */
 /* Begin PBXBuildPhase section */
-A00000000000000000000401 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000,B000000000000000000001,B000000000000000000010,B000000000000000000011,B000000000000000000012,B000000000000000000002,B000000000000000000003,B000000000000000000004,B000000000000000000005,B000000000000000000006,B000000000000000000007,B000000000000000000008,B000000000000000000009,B00000000000000000000A,B00000000000000000000B,B00000000000000000000C,B00000000000000000000D,B00000000000000000000E,B00000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
+A00000000000000000000401 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000,B000000000000000000001,B000000000000000000010,B000000000000000000011,B000000000000000000012,B000000000000000000013,B000000000000000000002,B000000000000000000003,B000000000000000000004,B000000000000000000005,B000000000000000000006,B000000000000000000007,B000000000000000000008,B000000000000000000009,B00000000000000000000A,B00000000000000000000B,B00000000000000000000C,B00000000000000000000D,B00000000000000000000E,B00000000000000000000F); runOnlyForDeploymentPostprocessing = 0; };
 A00000000000000000000402 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000064,B000000000000000000065,B000000000000000000066); runOnlyForDeploymentPostprocessing = 0; };
 A00000000000000000000403 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000009,A00000000000000000000004,); runOnlyForDeploymentPostprocessing = 0; };
 A00000000000000000000404 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000006,A00000000000000000000008,); runOnlyForDeploymentPostprocessing = 0; };

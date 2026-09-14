@@ -189,4 +189,22 @@ extension IntegrationTests {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("cancel.bin.abpart").path))
         if let result { for part in result.parts { XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(".cancel.bin.abpart.\(part.id.uuidString)").path)) } }
     }
+
+    func testAbortCleansPartFilesWithoutHistory() async throws {
+        let store = try AppStateStore(directory: directory)
+        var settings = (await store.snapshot()).settings; settings.threadCount = 1; settings.maxDownloadRetryCount = 0
+        try await store.setSettings(settings)
+        let testSettings = settings
+        let engine = DownloadEngine(store: store, settingsProvider: { testSettings })
+        let task = try await store.addTask(DownloadRequest(source: DownloadSource(url: fixture.baseURL.appendingPathComponent("file")), folderPath: directory.path, fileName: "abort.bin", speedLimit: 1))
+        try await engine.start(taskID: task.id)
+        try await Task.sleep(for: .milliseconds(75))
+        await engine.abort(taskID: task.id)
+        let before = (await store.snapshot()).history.count
+        try await store.removeTask(id: task.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("abort.bin.abpart").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("abort.bin.abpart.hls.json").path))
+        let after = (await store.snapshot()).history.count
+        XCTAssertEqual(after, before)
+    }
 }

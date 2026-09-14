@@ -46,6 +46,9 @@ not as runtime code. Verification is local and does not use a public server.
 | Localized strings | `shared/resources/.../locales/*.properties` (27 locales) | generated Apple `.lproj/Localizable.strings` resources | SPM resource compilation | Partial (critical English/Chinese keys wired; full UI review remains) |
 | Liquid Glass/accessibility | Compose theme and desktop settings UI | macOS 26 `.glassEffect`, centralized fallback, reduce transparency/motion, labels, keyboard commands, dynamic system fonts | app target build and source audit | Partial (manual VoiceOver/UI automation remains) |
 | App packaging | Gradle desktop packaging workflows | Native `zjx-download.xcodeproj` application target, shared scheme, Info.plist, bundle identifier, asset catalog, and SwiftPM core | `xcodebuild ... build CODE_SIGNING_ALLOWED=NO`; inspect `.app` bundle; `xcodebuild ... test` | Implemented |
+| Multi-selection and select-all-visible | desktop download list multi-select/`BaseHomeComponent` selection list | SwiftUI `List(selection: Set<Int64>)`, `TaskSelection` pure model, select-all/clear against the current visible list, pruning on refresh | `SelectionTests` (toggle, select-all, prune, snapshot, ordering) | Implemented |
+| Batch actions and confirmed delete | desktop home batch action menus and confirm-delete flows | `AppModel` batch start/pause/retry/cancel with per-status filtering, `DeleteSelectionSummary` classification, confirmed multi-delete sheet with "also delete files" | `SelectionTests` batch-guard and delete-classification cases; selection and delete lifecycle wired in app | Partial (manual multi-select/right-click rendering, Command+range, on-disk deletion still unverified) |
+| Keyboard shortcuts and context menu | desktop key shortcuts and download row context menu | `AppCommands` Command+A / Command+Delete / batch shortcuts gated to Downloads; `contextMenu(forSelectionType:)` selection menu | app target build; manual UI checklist | Partial (manual keyboard/context-menu verification remains) |
 
 ## Verification commands
 
@@ -202,3 +205,121 @@ scheduling, category and host-override editing, switching the language picker
 between 简体中文 and English at runtime, VoiceOver, and light/dark plus
 Reduce Motion/Transparency appearance. No notarization was performed and no
 test suite or network download was run.
+
+## Job-012 verification record (2026-09-14)
+
+Multi-selection, select-all-visible, batch actions, and the confirmed delete
+flow. Commands actually run:
+
+- `git diff --check` — clean, exit 0.
+- `swift build --scratch-path .build/job-012-scratch` — passed, no warnings.
+- `swift test --scratch-path .build/job-012-scratch` — passed, 38 tests /
+  0 failures (17 new `SelectionTests` + 1 new `IntegrationTests.testAbortCleansPartFilesWithoutHistory`
+  + the existing 20). The new coverage exercises selection add/remove/toggle,
+  select-all-visible + clear, prune after refresh/filter (never selects hidden
+  tasks, keeps primary when still present), snapshot ordering, batch state
+  filtering (start/pause/retry/cancel guards per status), delete-confirmation
+  finished/unfinished/mixed classification, and the engine's `abort()` delete
+  path (partial files cleaned, no cancellation History record).
+- `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -configuration Release -destination 'platform=macOS' -derivedDataPath /tmp/zjx-job12-dd4 build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`
+  — exit 0, BUILD SUCCEEDED, no warnings or errors.
+- Bundle inspection of the Release build: `CFBundleIdentifier=com.zjx.download`,
+  `CFBundleDisplayName=zjx-download`, executable and embedded Core framework are
+  universal `arm64+x86_64`; `Contents/Resources` contains `en.lproj`, `zh-Hans.lproj`,
+  `AppIcon.icns`, `Assets.car`, `Metadata.appintents`. The new `selection.*`,
+  `commands.*`, `error.batchFailure` and `error.fileMissing` keys resolve in both
+  bundles; `TaskSelection` symbols are present in the Core framework.
+- A bounded launch of the built bundle stayed alive for 3 seconds and was then
+  terminated by the harness.
+
+Fidelity notes (remaining differences):
+
+- SwiftUI `List(selection:)` multi-select + `contextMenu(forSelectionType:)` are
+  used; Command-multi-select and Shift-range selection follow the native macOS
+  behavior. Right-click on an unselected row and the exact native
+  re-selection timing were not verified headlessly; the context-menu actions read
+  the model selection, which the list binding keeps in sync.
+- "Select all / clear" applies to the currently visible Downloads list (cancelled
+  tasks are treated as dismissed and excluded; completed tasks remain visible so
+  they can be opened, revealed or deleted). Sidebar/status/category/search/sort
+  filters do not yet exist in the Downloads page beyond the terminal-state split,
+  so selection always resolves against the one visible list.
+- Double-click on a completed file opens it; otherwise it anchors the inspector.
+  A multi-selection double-click never opens an arbitrary row.
+- Command+Delete walks the same confirmed-delete sheet; start/pause/retry
+  shortcuts are gated to the Downloads section.
+
+Not verified (left to manual testing): actual rendering of the selection bar and
+toolbar menu, right-click re-selection specifics, keyboard Command+range
+interaction, and real file deletion from disk. No signing, notarization,
+commit, or push was performed.
+
+## Job-014 verification record (2026-09-14)
+
+Addresses the six independent-review defects from Job-013: primary maintenance,
+visible-list pruning, right-click selection snapshot, invalid-state batch skips,
+delete-sheet state reset, and reverse-check against upstream Kotlin.
+
+Commands actually run:
+
+- `git diff --check` — clean, exit 0.
+- `swift build --scratch-path .build/job-014-scratch` — passed, no warnings.
+- `swift test --scratch-path .build/job-014-scratch` — passed, 46 tests /
+  0 failures (the 25 `SelectionTests`, 20 existing unit tests, 1 abort-cleanup
+  integration test). New coverage: `AppModel.replaceSelection` primary
+  stabilization, prune drops cancelled/hidden ids from the *visible* list,
+  `isAllVisibleSelected` subset semantics (all visible ⊆ selected, empty => false),
+  batch snapshot excludes hidden ids, `runBatch` skips unresumable tasks without
+  aggregating them as failures while genuine engine errors still aggregate and
+  do not abort subsequent legal items.
+- Release xcodebuild
+  `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -configuration Release -derivedDataPath .build/job-014-xcbuild ARCHS='arm64 x86_64' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build`
+  — exit 0, BUILD SUCCEEDED, no warnings/errors.
+- Bundle checks on `.build/job-014-xcbuild/Build/Products/Release/zjx-download.app`:
+  `lipo -info` shows `x86_64 arm64` universal; `plutil` confirms
+  `CFBundleIdentifier=com.zjx.download`, `CFBundleDisplayName=zjx-download`,
+  `CFBundleShortVersionString=1.0.0`; `Contents/Resources` contains `en.lproj`,
+  `zh-Hans.lproj`, `AppIcon.icns`, `Assets.car`, `Metadata.appintents`.
+- Launch smoke test: `open` of the Release bundle stayed alive (process present)
+  and was terminated by the harness.
+
+Fix details per defect:
+
+1. **Primary maintenance** — added `AppModel.replaceSelection(_:preferredPrimary:)`,
+   the single path the list binding and the right-click menu use. A non-empty
+   selection keeps the previous primary when still visible, otherwise picks the
+   first selected id in `visibleTasks` order (never an arbitrary Set member);
+   empty selection clears primary. The selection setter now calls it.
+2. **Visible-list pruning** — `pruneSelection()` now prunes against
+   `visibleTasks.map(\.id)` instead of `tasks.map(\.id)`, so cancelled/hidden ids
+   cannot survive into selection, batch snapshots, or a later Command+A.
+3. **Right-click snapshot** — `TaskSelectionMenu` now receives the `Set<Int64>`
+   SwiftUI passes in and every action (start/pause/retry/cancel/delete) resolves
+   against that snapshot through new `*Selected`-adjacent `start(ids:)`/`pause(ids:)`
+   etc. APIs. `apply()` mirrors upstream `onRequestOpenDownloadItemOption`:
+   right-clicking an unselected row replaces the model selection; the batch uses
+   the snapshot either way.
+4. **Invalid-state skip** — `BatchAction` + `runBatch` isolate the state guard
+   from the engine call; a task whose state cannot take the action is skipped
+   (not a failure); only genuine thrown errors aggregate into `lastError` and one
+   error never aborts the remaining legal items.
+5. **Delete-sheet reset** — `DeleteSelectionSheet` resets `alsoDeleteFiles = false`
+   via `.onAppear` and `.onChange(of: model.deleteConfirmation?.ids)`, so every new
+   confirmation starts unchecked; cancel never mutates tasks/files.
+6. **Reverse-check** — read upstream `DownloadList.kt` (desktop, sections),
+   `HomeComponent.kt`, `BaseHomeComponent.kt`, `AbstractDownloadActions.kt`,
+   `DesktopDownloadActions.kt`. Confirmed: selection is pruned against the live
+   download list (`selectionListItems`), plain click replaces the selection
+   (`changeAllSelection(false)` + single select), right-click on an unselected
+   row re-selects to that row before showing options, `isALlSelected` is
+   `list.map { it.id }.all { it in selectionList }` (false for empty), and the
+   option menu actions operate on the current `selections`. The Swift
+   implementation mirrors these; the one deliberate difference is that the Swift
+   context-menu actions use the snapshot passed into the menu rather than the
+   model's synced selection, because iOS/macOS list right-click timing can lag
+   the model.
+
+Not verified headlessly (left to manual acceptance): the actual right-click
+re-selection visual timing, native Command/Shift range rendering, and real
+file deletion from disk. No signing, notarization, commit, or push was
+performed.

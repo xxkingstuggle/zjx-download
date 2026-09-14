@@ -46,12 +46,19 @@ final class AppModel: ObservableObject {
     @Published private(set) var categories: [DownloadCategory] = []
     @Published private(set) var hostOverrides: [HostOverride] = []
     @Published var settings: AppSettings = AppSettings()
-    @Published var selectedTaskID: Int64?
+    /// Multi-selection over the currently visible task ids. The list view
+    /// binds its native selection directly to this value; ids are pruned in
+    /// `refresh()` so selection can never outlive its tasks.
+    @Published var selectedIDs: Set<Int64> = Set<Int64>()
+    /// The anchor task for the inspector / double-click target. Remains one of
+    /// the selected ids when possible and is kept in sync by `setSelection`.
+    @Published var primaryTaskID: Int64?
     @Published var section: SidebarSection = .downloads
     @Published var isShowingNewDownload = false
     @Published var isShowingSettings = false
     @Published var lastError: String?
     @Published var progress: [Int64: DownloadProgress] = [:]
+    @Published var deleteConfirmation: DeleteSelectionSummary?
     private var notifiedStatuses: [Int64: DownloadStatus] = [:]
 
     let store: AppStateStore?
@@ -127,7 +134,96 @@ final class AppModel: ObservableObject {
         guard let store else { return }
         let snapshot = await store.snapshot()
         tasks = snapshot.tasks; queues = snapshot.queues; history = snapshot.history; categories = snapshot.categories; hostOverrides = snapshot.hostOverrides; settings = snapshot.settings
+        pruneSelection()
         notifyForFinishedTasks(snapshot.tasks)
+    }
+
+    /// The downloads page's visible tasks, newest-first. Cancelled items are
+    /// considered dismissed (they surface again in History) while completed
+    /// files stay in the list so they can be opened, revealed or deleted.
+    /// Selection and "select all" always resolve against this exact list so
+    /// hidden results can never be silently selected.
+    var visibleTasks: [DownloadTask] {
+        tasks.filter { $0.status != .cancelled }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var selectedTasks: [DownloadTask] {
+        visibleTasks.filter { selectedIDs.contains($0.id) }
+    }
+
+    var isSelectionEmpty: Bool { selectedIDs.isEmpty }
+    var selectionCount: Int { selectedIDs.count }
+
+    /// True when every visible id is selected. Uses subset semantics (all
+    /// visible ids ⊆ selected) instead of an equality count so a poisoned
+    /// selection that still holds hidden ids cannot misreport "all selected".
+    /// Matches upstream's `isALlSelected` (`list.map { it.id }.all { it in
+    /// selectionList }`), which also returns false for an empty list.
+    var isAllVisibleSelected: Bool {
+        !visibleTasks.isEmpty && visibleTasks.allSatisfy { selectedIDs.contains($0.id) }
+    }
+
+    /// Replaces the visible selection with exactly `ids`, anchored on
+    /// `preferredPrimary` when present, and keeps the inspector primary stable.
+    ///
+    /// This mirrors upstream's `BaseHomeComponent.newSelection`: a non-empty
+    /// selection keeps the previous primary when it is still visible; otherwise
+    /// the primary becomes the first selected id in visible (newest-first)
+    /// order so the inspector never flickers to a random set member.
+    func replaceSelection(_ ids: Set<Int64>, preferredPrimary: Int64? = nil) {
+        // Never adopt an id that is not currently visible; a snapshot coming
+        // from a stale binding or a just-deleted row is dropped here so it
+        // cannot leak into the selection that a later Command+A reasons about.
+        let visible = Set(visibleTasks.map(\.id))
+        selectedIDs = ids.intersection(visible)
+        if let primary = preferredPrimary, selectedIDs.contains(primary) {
+            primaryTaskID = primary
+        } else if let current = primaryTaskID, selectedIDs.contains(current) {
+            primaryTaskID = current
+        } else if let stable = selectedTasks.first?.id {
+            primaryTaskID = stable
+        } else {
+            primaryTaskID = nil
+        }
+    }
+
+    /// Replaces the visible selection with exactly the currently visible tasks
+    /// (or clears it), keeping the primary anchor when still visible.
+    func selectAllVisible(_ select: Bool) {
+        if select {
+            let selection = TaskSelection(ids: selectedIDs, primary: primaryTaskID).selecting(visible: visibleTasks.map(\.id))
+            replaceSelection(selection.ids, preferredPrimary: selection.primary)
+        } else {
+            clearSelection()
+        }
+    }
+
+    func clearSelection() {
+        selectedIDs.removeAll()
+        primaryTaskID = nil
+    }
+
+    /// Sets the primary task; if it is not yet selected it becomes the sole
+    /// selection, matching single-click behaviour in the list.
+    func setPrimary(_ task: DownloadTask) {
+        if !selectedIDs.contains(task.id) {
+            selectedIDs = Set([task.id])
+        }
+        primaryTaskID = task.id
+    }
+
+    /// Removes ids that no longer correspond to a *visible* task. Pruning
+    /// against `visibleTasks` (which drops cancelled items) means a hidden or
+    /// mid-delete id can never keep batch operations or a subsequent
+    /// Command+A pointing at tasks the user can no longer see.
+    func pruneSelection() {
+        if selectedIDs.isEmpty { return }
+        let visible = visibleTasks.map(\.id)
+        let selection = TaskSelection(ids: selectedIDs, primary: primaryTaskID).pruned(available: visible)
+        selectedIDs = selection.ids
+        if let primary = primaryTaskID, !selectedIDs.contains(primary) {
+            primaryTaskID = selection.primary ?? selectedTasks.first?.id
+        }
     }
 
 
@@ -196,6 +292,14 @@ final class AppModel: ObservableObject {
     func pause(_ task: DownloadTask) async { do { try await engine?.pause(taskID: task.id); await refresh() } catch { lastError = error.localizedDescription } }
     func cancel(_ task: DownloadTask) async { do { try await engine?.cancel(taskID: task.id); await refresh() } catch { lastError = error.localizedDescription } }
     func retry(_ task: DownloadTask) async { do { try await engine?.retry(taskID: task.id); await refresh() } catch { lastError = error.localizedDescription } }
+    /// Double-click semantics: a completed file opens, otherwise the row is
+    /// focused in the inspector. Never opens a random item from a multi-selection.
+    func openTask(_ task: DownloadTask) async {
+        if task.status == .completed {
+            if FileManager.default.fileExists(atPath: task.filePath) { NSWorkspace.shared.open(URL(fileURLWithPath: task.filePath)) } else { lastError = AppLocalization.string("error.fileMissing") }
+        }
+        setPrimary(task)
+    }
     func editTask(_ task: DownloadTask, fileName: String, folder: String, urlText: String, queueID: Int64?, categoryID: Int64?, headers: [String: String], checksum: String?, speedLimit: Int64) async {
         guard let store, task.canEdit else { lastError = AppLocalization.string("error.taskNotEditable"); return }
         guard let url = URL(string: urlText), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { lastError = AppLocalization.string("error.invalidTaskURL"); return }
@@ -224,6 +328,90 @@ final class AppModel: ObservableObject {
             await restartREST(using: value.integration)
             if value.clipboardMonitoring { clipboardMonitor?.start() } else { clipboardMonitor?.stop() }
         } catch { lastError = error.localizedDescription }
+    }
+
+    // MARK: Batch selection actions -------------------------------------------
+
+    /// Runs `action` over the currently selected (or passed) id snapshot.
+    /// Tasks the action does not apply to are skipped — a state mismatch is
+    /// not treated as a failure (upstream guards these the same way) — and
+    /// only genuine engine/store errors are aggregated into `lastError`.
+    /// A single failing item never aborts the rest of the legal items.
+    private func batch(_ label: String, ids: Set<Int64>, using action: BatchAction) async {
+        guard !ids.isEmpty else { return }
+        if let failures = await runBatch(action, ids: ids, visible: visibleTasks) {
+            lastError = "\(label)\n" + failures
+        }
+        await refresh()
+    }
+
+    private static func resumableAction(_ perform: @escaping @Sendable (DownloadTask) async throws -> Void) -> BatchAction {
+        BatchAction(appliesTo: { $0.status.isResumable }, perform: perform)
+    }
+    private static func activeAction(_ perform: @escaping @Sendable (DownloadTask) async throws -> Void) -> BatchAction {
+        BatchAction(appliesTo: { $0.status.isActive }, perform: perform)
+    }
+    private static func retryAction(_ perform: @escaping @Sendable (DownloadTask) async throws -> Void) -> BatchAction {
+        BatchAction(appliesTo: { $0.status == .failed || $0.status == .stopped }, perform: perform)
+    }
+    private static func cancelAction(_ perform: @escaping @Sendable (DownloadTask) async throws -> Void) -> BatchAction {
+        BatchAction(appliesTo: { !$0.status.isTerminal }, perform: perform)
+    }
+
+    func startSelected() async { await batch(AppLocalization.string("error.batchFailure"), ids: selectedIDs, using: Self.resumableAction { [engine] task in try await engine?.start(taskID: task.id) }) }
+    func resumeSelected() async { await batch(AppLocalization.string("error.batchFailure"), ids: selectedIDs, using: Self.resumableAction { [engine] task in try await engine?.start(taskID: task.id) }) }
+    func pauseSelected() async { await batch(AppLocalization.string("error.batchFailure"), ids: selectedIDs, using: Self.activeAction { [engine] task in try await engine?.pause(taskID: task.id) }) }
+    func retrySelected() async { await batch(AppLocalization.string("error.batchFailure"), ids: selectedIDs, using: Self.retryAction { [engine] task in try await engine?.retry(taskID: task.id) }) }
+    func cancelSelected() async { await batch(AppLocalization.string("error.batchFailure"), ids: selectedIDs, using: Self.cancelAction { [engine] task in try await engine?.cancel(taskID: task.id) }) }
+
+    /// Batch variants that act on an explicit id snapshot (used by the context
+    /// menu, which carries its own selection).
+    func start(ids: Set<Int64>) async { await batch(AppLocalization.string("error.batchFailure"), ids: ids, using: Self.resumableAction { [engine] task in try await engine?.start(taskID: task.id) }) }
+    func resume(ids: Set<Int64>) async { await batch(AppLocalization.string("error.batchFailure"), ids: ids, using: Self.resumableAction { [engine] task in try await engine?.start(taskID: task.id) }) }
+    func pause(ids: Set<Int64>) async { await batch(AppLocalization.string("error.batchFailure"), ids: ids, using: Self.activeAction { [engine] task in try await engine?.pause(taskID: task.id) }) }
+    func retry(ids: Set<Int64>) async { await batch(AppLocalization.string("error.batchFailure"), ids: ids, using: Self.retryAction { [engine] task in try await engine?.retry(taskID: task.id) }) }
+    func cancel(ids: Set<Int64>) async { await batch(AppLocalization.string("error.batchFailure"), ids: ids, using: Self.cancelAction { [engine] task in try await engine?.cancel(taskID: task.id) }) }
+
+    /// Deletes the tasks captured by `confirmation`; when `alsoDeleteFiles` is
+    /// set the completed destination file is removed first (split from the task
+    /// deletion so a failure to remove a file does not lose the task). Partial
+    /// files of unfinished tasks are cleaned by the engine's `abort` path
+    /// without writing a cancellation History record. The selection is pruned
+    /// afterwards by `refresh()`.
+    func confirmDelete(_ confirmation: DeleteSelectionSummary, alsoDeleteFiles: Bool) async {
+        guard !confirmation.ids.isEmpty else { deleteConfirmation = nil; return }
+        guard let store else { return }
+        if alsoDeleteFiles {
+            for id in confirmation.ids {
+                guard let task = await store.task(id: id), task.status == .completed else { continue }
+                do {
+                    let url = try FileUtilities.containedURL(folder: URL(fileURLWithPath: task.folderPath), fileName: task.fileName)
+                    if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+                } catch { lastError = error.localizedDescription }
+            }
+        }
+        for id in confirmation.ids {
+            await engine?.abort(taskID: id)
+            do { try await store.removeTask(id: id) } catch { lastError = error.localizedDescription }
+        }
+        deleteConfirmation = nil
+        await refresh()
+    }
+
+    /// Computes the delete confirmation summary for `ids` (defaults to the
+    /// current selection) and stores it so a sheet can render the
+    /// finished/unfinished mix and the "also delete files" option. Returns
+    /// `nil` when there is nothing to delete.
+    func requestDeleteConfirmation(ids: Set<Int64>? = nil) -> DeleteSelectionSummary? {
+        let source = ids ?? selectedIDs
+        guard !source.isEmpty else { return nil }
+        let confirmation = DeleteSelectionSummary.classify(Array(visibleTasks.filter { source.contains($0.id) }))
+        deleteConfirmation = confirmation
+        return confirmation
+    }
+
+    func dismissDeleteConfirmation() {
+        deleteConfirmation = nil
     }
 
     private func restartREST(using integration: IntegrationSettings) async {
@@ -276,6 +464,12 @@ enum AppLocalization {
         String(format: string(key, language: language), arguments: arguments)
     }
 }
+
+/// Immutable snapshot taken when a multi-delete is confirmed. The ids are
+/// captured once at request time so the sheet and the delete action agree even
+/// if the list refreshes in between. The classification logic lives in core
+/// (`DeleteSelectionSummary`) so it can be unit tested.
+typealias DeleteConfirmation = DeleteSelectionSummary
 
 private func statusKey(_ status: DownloadStatus) -> LocalizedStringKey {
     switch status {
@@ -338,7 +532,7 @@ struct MainWindow: View {
         } detail: {
             switch model.section {
             case .downloads:
-                if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) {
+                if let id = model.primaryTaskID, let task = model.tasks.first(where: { $0.id == id }) {
                     HSplitView {
                         DownloadList(model: model).frame(minWidth: 340, idealWidth: 560)
                         TaskInspector(model: model, task: task, progress: model.progress[id]).frame(minWidth: 360, idealWidth: 420)
@@ -386,25 +580,130 @@ struct SidebarStatus: View {
 }
 struct DownloadList: View {
     @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
     @State private var showingChecksum = false
-    var visible: [DownloadTask] { model.tasks.filter { !$0.status.isTerminal }.sorted { $0.createdAt > $1.createdAt } }
     var body: some View {
-        Group { if visible.isEmpty { ContentUnavailableView(LocalizedStringKey("downloads.empty.title"), systemImage: "arrow.down.circle", description: Text(LocalizedStringKey("downloads.empty.description"))) } else { List(selection: $model.selectedTaskID) { ForEach(visible) { task in DownloadRow(task: task, progress: model.progress[task.id], onStart: { Task { await model.start(task) } }, onPause: { Task { await model.pause(task) } }, onCancel: { Task { await model.cancel(task) } }, onRetry: { Task { await model.retry(task) } }).tag(task.id) } }.accessibilityLabel(LocalizedStringKey("downloads.active")) } }
+        Group {
+            if model.visibleTasks.isEmpty {
+                ContentUnavailableView(LocalizedStringKey("downloads.empty.title"), systemImage: "arrow.down.circle", description: Text(LocalizedStringKey("downloads.empty.description")))
+            } else {
+                List(selection: Binding(get: { model.selectedIDs }, set: { value in
+                    model.replaceSelection(value)
+                })) {
+                    ForEach(model.visibleTasks) { task in DownloadRow(task: task, progress: model.progress[task.id], onStart: { Task { await model.start(task) } }, onPause: { Task { await model.pause(task) } }, onCancel: { Task { await model.cancel(task) } }, onRetry: { Task { await model.retry(task) } }, onDoubleClick: { Task { await model.openTask(task) } }).tag(task.id) }
+                }
+                .contextMenu(forSelectionType: Int64.self) { selection in TaskSelectionMenu(model: model, selection: selection) }
+                .accessibilityLabel(LocalizedStringKey("downloads.active"))
+            }
+        }
         .navigationTitle(LocalizedStringKey("downloads.title"))
-        .toolbar { ToolbarItem(placement: .automatic) { Button { showingChecksum = true } label: { Image(systemName: "number") }.help(LocalizedStringKey("toolbar.checksum")).accessibilityLabel(LocalizedStringKey("toolbar.checksum")) } }
+        .toolbar {
+            if !model.isSelectionEmpty && !model.visibleTasks.isEmpty {
+                ToolbarItem(placement: .status) { selectionStatus }
+            }
+            ToolbarItem(placement: .automatic) { Button { model.selectAllVisible(!model.isAllVisibleSelected) } label: { Image(systemName: model.isAllVisibleSelected ? "checkmark.circle.fill" : "checkmark.circle") }.help(LocalizedStringKey(model.isAllVisibleSelected ? "selection.clearAll" : "selection.selectAll")).accessibilityLabel(LocalizedStringKey(model.isAllVisibleSelected ? "selection.clearAll" : "selection.selectAll")) }
+            if !model.isSelectionEmpty && !model.visibleTasks.isEmpty {
+                ToolbarItem(placement: .confirmationAction) { Menu(LocalizedStringKey("selection.actions")) { selectionMenu } }
+            }
+            ToolbarItem(placement: .automatic) { Button { showingChecksum = true } label: { Image(systemName: "number") }.help(LocalizedStringKey("toolbar.checksum")).accessibilityLabel(LocalizedStringKey("toolbar.checksum")) }
+        }
         .sheet(isPresented: $showingChecksum) { ChecksumToolView() }
+        .sheet(isPresented: Binding(get: { model.deleteConfirmation != nil }, set: { presented in if !presented { model.dismissDeleteConfirmation() } })) { DeleteSelectionSheet(model: model) }
+    }
+
+    @ViewBuilder var selectionStatus: some View {
+        Text(selectionCountLabel).foregroundStyle(.secondary).font(.caption).padding(.horizontal, 8).accessibilityLabel(selectionCountLabel)
+    }
+
+    @ViewBuilder var selectionMenu: some View {
+        Button(LocalizedStringKey("selection.start")) { Task { await model.resumeSelected() } }
+        Button(LocalizedStringKey("selection.pause")) { Task { await model.pauseSelected() } }
+        Button(LocalizedStringKey("selection.retry")) { Task { await model.retrySelected() } }
+        Divider()
+        Button(LocalizedStringKey("selection.cancel")) { Task { await model.cancelSelected() } }
+        Button(LocalizedStringKey("common.delete"), role: .destructive) { _ = model.requestDeleteConfirmation() }
+    }
+
+    private var selectionCountLabel: String {
+        AppLocalization.format("selection.count", language: language, model.selectionCount)
+    }
+}
+
+/// Context menu shown when right-clicking a row. `selection` is the snapshot
+/// SwiftUI passes in for the rows under the cursor, which may differ from
+/// `model.selectedIDs` until the binding syncs — so every action resolves
+/// against this snapshot, never the model.
+///
+/// Semantics (matching upstream `onRequestOpenDownloadItemOption`):
+/// - Right-click an unselected row: the menu acts on just that row. It is
+///   added to the model selection (via `apply()`) so the list and inspector
+///   agree with what was clicked, but the batch action itself uses the passed
+///   id snapshot so a stale binding cannot leak unrelated tasks in.
+/// - Right-click an already-selected multi-selection: the menu acts on the
+///   whole selection as shown.
+/// - Right-click after a single select: acts on that one row.
+struct TaskSelectionMenu: View {
+    @ObservedObject var model: AppModel
+    let selection: Set<Int64>
+
+    var body: some View {
+        Button(LocalizedStringKey("selection.start")) { apply(); Task { await model.resume(ids: selection) } }
+        Button(LocalizedStringKey("selection.pause")) { apply(); Task { await model.pause(ids: selection) } }
+        Button(LocalizedStringKey("selection.retry")) { apply(); Task { await model.retry(ids: selection) } }
+        Divider()
+        Button(LocalizedStringKey("selection.cancel")) { apply(); Task { await model.cancel(ids: selection) } }
+        Button(LocalizedStringKey("common.delete"), role: .destructive) { apply(); _ = model.requestDeleteConfirmation(ids: selection) }
+    }
+
+    /// Mirrors upstream's right-click contract: a right-clicked row that is
+    /// not selected replaces the selection. Batch actions still use the
+    /// snapshot passed in, so this only affects the inspector/list sync.
+    private func apply() {
+        if !model.selectedIDs.isSuperset(of: selection) {
+            model.replaceSelection(selection)
+        }
+    }
+}
+
+struct DeleteSelectionSheet: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.appLanguage) private var language
+    @Environment(\.dismiss) private var dismiss
+    @State private var alsoDeleteFiles = false
+
+    var body: some View {
+        Group {
+            if let confirmation = model.deleteConfirmation {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(LocalizedStringKey("selection.deleteTitle")).font(.title2.bold())
+                    Text(deleteMessage).foregroundStyle(.secondary)
+                    if confirmation.hasFinished {
+                        Toggle(LocalizedStringKey("selection.deleteFiles"), isOn: $alsoDeleteFiles)
+                    }
+                    HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("common.delete"), role: .destructive) { dismiss(); Task { await model.confirmDelete(confirmation, alsoDeleteFiles: alsoDeleteFiles) } } }
+                }.padding(24).frame(width: 480)
+            }
+        }
+        .onAppear { alsoDeleteFiles = false }
+        .onChange(of: model.deleteConfirmation?.ids) { alsoDeleteFiles = false }
+    }
+    private var deleteMessage: String {
+        guard let confirmation = model.deleteConfirmation else { return "" }
+        if confirmation.hasFinished && confirmation.hasUnfinished { return AppLocalization.format("selection.deleteMixed", language: language, confirmation.ids.count) }
+        if confirmation.hasFinished { return AppLocalization.format("selection.deleteFinished", language: language, confirmation.ids.count) }
+        return AppLocalization.format("selection.deleteUnfinished", language: language, confirmation.ids.count)
     }
 }
 
 struct DownloadRow: View {
-    let task: DownloadTask; let progress: DownloadProgress?; let onStart: () -> Void; let onPause: () -> Void; let onCancel: () -> Void; let onRetry: () -> Void
+    let task: DownloadTask; let progress: DownloadProgress?; let onStart: () -> Void; let onPause: () -> Void; let onCancel: () -> Void; let onRetry: () -> Void; let onDoubleClick: () -> Void
     @Environment(\.appLanguage) private var language
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon).font(.title3).foregroundStyle(color).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) { Text(task.fileName).lineLimit(1); HStack { ProgressView(value: task.progress); statusLabel.font(.caption).foregroundStyle(.secondary) } }
             Spacer(); if task.status == .downloading { Button(action: onPause) { Image(systemName: "pause.fill") }.buttonStyle(.borderless).accessibilityLabel(Text(pauseLabel)) } else if task.status.isResumable { Button(action: onStart) { Image(systemName: "play.fill") }.buttonStyle(.borderless).accessibilityLabel(Text(startLabel)) }; if task.status.isActive { Button(action: onCancel) { Image(systemName: "xmark") }.buttonStyle(.borderless).accessibilityLabel(Text(cancelLabel)) }
-        }.padding(.vertical, 5).contextMenu { Button(LocalizedStringKey("commands.start"), action: onStart); Button(LocalizedStringKey("commands.pause"), action: onPause); Button(LocalizedStringKey("newDownload.cancel"), action: onCancel); if task.status == .failed { Button(LocalizedStringKey("commands.retry"), action: onRetry) } }
+        }.padding(.vertical, 5).onTapGesture(count: 2, perform: { onDoubleClick() })
     }
     var icon: String { switch task.status { case .completed: "checkmark.circle.fill"; case .failed: "exclamationmark.triangle.fill"; case .paused: "pause.circle"; case .downloading: "arrow.down.circle.fill"; default: "circle" } }
     var color: Color { task.status == .failed ? .red : task.status == .completed ? .green : .accentColor }
@@ -636,7 +935,52 @@ struct SettingsView: View {
 }
 
 struct MenuBarView: View { @ObservedObject var model: AppModel; @Environment(\.appLanguage) private var language; var body: some View { Text(AppLocalization.format("menubar.active", language: language, model.tasks.filter { $0.status.isActive }.count)); Divider(); Button(LocalizedStringKey("toolbar.newDownload")) { model.isShowingNewDownload = true }; Button(LocalizedStringKey("menubar.open")) { NSApp.activate(ignoringOtherApps: true) }; Divider(); Button(LocalizedStringKey("menubar.quit")) { NSApp.terminate(nil) } } }
-struct AppCommands: Commands { @ObservedObject var model: AppModel; var body: some Commands { CommandGroup(after: .newItem) { Button(LocalizedStringKey("toolbar.newDownload")) { model.isShowingNewDownload = true }.keyboardShortcut("n", modifiers: [.command, .shift]) }; CommandMenu(LocalizedStringKey("downloads.title")) { Button(LocalizedStringKey("commands.startSelected")) { if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { Task { await model.start(task) } } }.keyboardShortcut(.return, modifiers: [.command]); Button(LocalizedStringKey("commands.pauseSelected")) { if let id = model.selectedTaskID, let task = model.tasks.first(where: { $0.id == id }) { Task { await model.pause(task) } } }.keyboardShortcut("p", modifiers: .command) } } }
+struct AppCommands: Commands {
+    @ObservedObject var model: AppModel
+    private var inDownloads: Bool { model.section == .downloads }
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button(LocalizedStringKey("toolbar.newDownload")) { model.isShowingNewDownload = true }.keyboardShortcut("n", modifiers: [.command, .shift])
+        }
+        CommandMenu(LocalizedStringKey("downloads.title")) {
+            Button(LocalizedStringKey("commands.selectAll")) {
+                guard inDownloads else { return }
+                model.selectAllVisible(!model.isAllVisibleSelected)
+            }
+            .keyboardShortcut("a", modifiers: .command)
+            .disabled(!inDownloads)
+            Button(LocalizedStringKey("commands.deleteSelected")) {
+                guard inDownloads else { return }
+                _ = model.requestDeleteConfirmation()
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .disabled(!inDownloads || model.isSelectionEmpty)
+            Divider()
+            Button(LocalizedStringKey("commands.startSelected")) {
+                guard inDownloads else { return }
+                Task { await model.startSelected() }
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(!inDownloads || model.isSelectionEmpty)
+            Button(LocalizedStringKey("commands.pauseSelected")) {
+                guard inDownloads else { return }
+                Task { await model.pauseSelected() }
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .disabled(!inDownloads || model.isSelectionEmpty)
+            Button(LocalizedStringKey("commands.resumeSelected")) {
+                guard inDownloads else { return }
+                Task { await model.resumeSelected() }
+            }
+            .disabled(!inDownloads || model.isSelectionEmpty)
+            Button(LocalizedStringKey("commands.retrySelected")) {
+                guard inDownloads else { return }
+                Task { await model.retrySelected() }
+            }
+            .disabled(!inDownloads || model.isSelectionEmpty)
+        }
+    }
+}
 
 struct CategoriesView: View {
     @ObservedObject var model: AppModel

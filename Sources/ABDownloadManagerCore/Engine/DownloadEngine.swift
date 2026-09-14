@@ -99,6 +99,20 @@ public actor DownloadEngine {
         try await start(taskID: taskID)
     }
 
+    /// Stops the worker for `taskID`, unregisters it, and removes its partial
+    /// files. Unlike `cancel`, this does not write a History record: it is for
+    /// tasks the user is deliberately deleting, not for operations that deserve
+    /// a cancellation entry.
+    public func abort(taskID: Int64) async {
+        controls[taskID] = .cancelled
+        running[taskID]?.cancel()
+        running.removeValue(forKey: taskID)
+        controls.removeValue(forKey: taskID)
+        if let task = await store.task(id: taskID) {
+            cleanupPartialFiles(task)
+        }
+    }
+
     public func stopAll() async {
         for id in running.keys { controls[id] = .paused }
     }
