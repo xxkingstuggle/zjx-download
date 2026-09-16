@@ -7,7 +7,7 @@ public actor FolderBookmarkStore {
     private var bookmarks: [String: Data]
 
     public init(directory: URL? = nil) throws {
-        let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("ABDownloadManager", isDirectory: true)
+        let base = directory ?? AppStateStore.defaultDirectory()
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         fileURL = base.appendingPathComponent("folder-bookmarks.json")
         if let data = try? Data(contentsOf: fileURL), let values = try? JSONDecoder().decode([String: Data].self, from: data) { bookmarks = values } else { bookmarks = [:] }

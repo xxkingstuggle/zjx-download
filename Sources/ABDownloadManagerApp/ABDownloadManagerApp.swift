@@ -128,7 +128,7 @@ final class AppModel: ObservableObject {
             snapshot.settings.language = "zh-Hans"
             try? await store.setSettings(snapshot.settings)
         }
-        settings = snapshot.settings; tasks = snapshot.tasks; queues = snapshot.queues; history = snapshot.history; categories = snapshot.categories; hostOverrides = snapshot.hostOverrides
+        settings = sanitized(snapshot.settings); tasks = snapshot.tasks; queues = snapshot.queues; history = snapshot.history; categories = snapshot.categories; hostOverrides = snapshot.hostOverrides
         AppLocalization.defaultLanguageCode = snapshot.settings.language ?? "zh-Hans"
         if settings.clipboardMonitoring { clipboardMonitor?.start() } else { clipboardMonitor?.stop() }
         if settings.integration.enabled {
@@ -154,9 +154,15 @@ final class AppModel: ObservableObject {
     func refresh() async {
         guard let store else { return }
         let snapshot = await store.snapshot()
-        tasks = snapshot.tasks; queues = snapshot.queues; history = snapshot.history; categories = snapshot.categories; hostOverrides = snapshot.hostOverrides; settings = snapshot.settings
+        tasks = snapshot.tasks; queues = snapshot.queues; history = snapshot.history; categories = snapshot.categories; hostOverrides = snapshot.hostOverrides; settings = sanitized(snapshot.settings)
         pruneSelection()
         notifyForFinishedTasks(snapshot.tasks)
+    }
+
+    /// Applies verification-only environment overrides to the persisted settings.
+    /// Production launches (no env) are untouched.
+    private func sanitized(_ settings: AppSettings) -> AppSettings {
+        AppStateStore.sanitizedSettings(settings)
     }
 
     /// The downloads page's visible tasks, newest-first. Cancelled items are
@@ -471,6 +477,20 @@ enum AppLocalization {
         }
         for candidate in candidates {
             if let path = candidate.path(forResource: identifier, ofType: "lproj"), let localized = Bundle(path: path) {
+                return localized
+            }
+            // `path(forResource:ofType:)` compares the table directory name
+            // case-sensitively, but the on-disk casing is not guaranteed to
+            // match the identifier the app asks for — a SwiftPM build
+            // lowercases it (`zh-hans.lproj` for `zh-Hans`), which would make
+            // every lookup fall back to the raw key. Match case-insensitively.
+            if let resourceURL = candidate.resourceURL,
+               let entries = try? FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil),
+               let match = entries.first(where: {
+                   $0.pathExtension == "lproj"
+                       && $0.deletingPathExtension().lastPathComponent.compare(identifier, options: .caseInsensitive) == .orderedSame
+               }),
+               let localized = Bundle(url: match) {
                 return localized
             }
         }

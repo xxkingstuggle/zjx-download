@@ -650,6 +650,7 @@
 "shutdown_alert" = "关机警告";
 "shutdown_now" = "立即关机";
 "sidebar.application" = "应用";
+"sidebar.toggle" = "显示或隐藏边栏";
 "sidebar.library" = "资料库";
 "size" = "大小";
 "skip" = "跳过";

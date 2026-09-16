@@ -46,9 +46,25 @@ public actor AppStateStore {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    public init(directory: URL? = nil) throws {
-        let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    /// Overrides the on-disk location for tests and sandboxed verification
+    /// runs. Never read in production paths; default behaviour is untouched.
+    public static func defaultDirectory(overridingWith env: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        if let override = env["ABDM_STATE_DIRECTORY"], !override.isEmpty {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ABDownloadManager", isDirectory: true)
+    }
+
+    /// The shared `ABDownloadManager` bucket under App Support that both stores
+    /// (state + folder bookmarks) read from in production.
+    public static var sharedAppSupportDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ABDownloadManager", isDirectory: true)
+    }
+
+    public init(directory: URL? = nil) throws {
+        let base = directory ?? Self.defaultDirectory()
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         fileURL = base.appendingPathComponent("state.json")
         encoder = JSONEncoder()
@@ -66,6 +82,21 @@ public actor AppStateStore {
     }
 
     public func snapshot() -> PersistedAppState { state }
+
+    /// Returns `settings` with any test/verification overrides applied.
+    /// Verification instances redirect their REST server away from the default
+    /// port so they can never collide with an instance launched by the user.
+    public static func sanitizedSettings(
+        _ settings: AppSettings,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AppSettings {
+        var value = settings
+        if let port = environment["ABDM_INTEGRATION_PORT"],
+           let int = Int(port), int > 0 {
+            value.integration.port = int
+        }
+        return value
+    }
 
     public func upsertCategory(_ category: DownloadCategory) throws { if let index = state.categories.firstIndex(where: { $0.id == category.id }) { state.categories[index] = category } else { state.categories.append(category) }; try persist() }
     public func addCategory(name: String, extensions: [String] = [], hosts: [String] = [], folder: String? = nil) throws -> DownloadCategory { let category = DownloadCategory(id: state.nextCategoryID, name: name, order: state.categories.count, acceptedFileTypes: extensions, acceptedURLPatterns: hosts, categoryPath: folder); state.nextCategoryID += 1; state.categories.append(category); try persist(); return category }

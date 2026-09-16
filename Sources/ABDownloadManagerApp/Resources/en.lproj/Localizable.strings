@@ -147,6 +147,7 @@
 "settings.useAPIKey" = "Use API key";
 "settings.userAgent" = "User-Agent";
 "sidebar.application" = "Application";
+"sidebar.toggle" = "Show or Hide Sidebar";
 "sidebar.library" = "Library";
 "status.activeTotal" = "%lld active · %lld total";
 "status.cancelled" = "Cancelled";
