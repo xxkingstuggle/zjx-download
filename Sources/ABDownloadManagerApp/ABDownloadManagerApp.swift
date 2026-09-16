@@ -17,17 +17,38 @@ struct ABDownloadManagerApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {
-        WindowGroup { MainWindow(model: model).environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
-            .environment(\.appLanguage, model.settings.language ?? "zh-Hans") }
+        WindowGroup {
+            MainWindow(model: model)
+                .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+                .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
+                .preferredColorScheme(model.settings.theme.appearanceOverride.colorScheme)
+        }
             .defaultSize(width: 1100, height: 720)
             .commands { AppCommands(model: model) }
         MenuBarExtra(LocalizedStringKey("app.title"), systemImage: "arrow.down.circle") {
             MenuBarView(model: model)
                 .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
                 .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
+                .preferredColorScheme(model.settings.theme.appearanceOverride.colorScheme)
         }
-        Settings { SettingsView(model: model).environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
-            .environment(\.appLanguage, model.settings.language ?? "zh-Hans") }
+        Settings {
+            SettingsView(model: model)
+                .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+                .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
+                .preferredColorScheme(model.settings.theme.appearanceOverride.colorScheme)
+        }
+    }
+}
+
+extension AppearanceOverride {
+    /// SwiftUI-facing mapping. `nil` hands appearance control back to macOS so
+    /// System mode tracks live system changes; otherwise the value is forced.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
     }
 }
 

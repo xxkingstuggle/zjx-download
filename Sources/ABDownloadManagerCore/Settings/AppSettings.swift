@@ -30,6 +30,36 @@ public enum ThemeMode: String, Codable, Sendable, CaseIterable, Identifiable {
         case .dark: "Dark"
         }
     }
+
+    /// The appearance the app must force, or `.system` to follow macOS.
+    ///
+    /// Kept here as a pure mapping so it can be unit tested without importing
+    /// SwiftUI, and so every scene (window, Settings, menu bar) derives its
+    /// colour scheme from the same rule instead of re-deriving the ternary.
+    public var appearanceOverride: AppearanceOverride {
+        switch self {
+        case .system: .system
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
+/// Forced appearance, decoupled from SwiftUI's `ColorScheme` so the mapping is
+/// testable in the Foundation-only core module.
+public enum AppearanceOverride: String, Codable, Sendable, CaseIterable {
+    case system
+    case light
+    case dark
+
+    /// `nil` when macOS decides (system), otherwise whether dark is forced.
+    public var forcedDark: Bool? {
+        switch self {
+        case .system: nil
+        case .light: false
+        case .dark: true
+        }
+    }
 }
 
 /// Proxy configuration. Mirrors the original's proxy settings surface.
