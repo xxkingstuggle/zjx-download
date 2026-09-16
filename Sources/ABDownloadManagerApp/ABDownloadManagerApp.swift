@@ -533,8 +533,37 @@ enum SidebarSection: String, CaseIterable, Identifiable { case downloads, queues
 
 struct MainWindow: View {
     @ObservedObject var model: AppModel
+
+    /// Sidebar visibility is owned by the split view so macOS can auto-collapse
+    /// the column at narrow widths instead of clipping its icons and titles.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    /// The user's intent for the inspector. The inspector is only laid out as a
+    /// third column when the detail area is genuinely wide enough; otherwise it
+    /// is offered as a sheet, so three panes are never crammed into a window
+    /// that cannot hold them.
+    @State private var wantsInspector = true
+    @State private var showingInspectorSheet = false
+    @State private var detailWidth: CGFloat = 0
+
+    /// Honest working minimum, measured rather than guessed: the sidebar's
+    /// ideal 220pt plus the list's 300pt minimum plus the split view's insets.
+    /// Below that the split view overflows and clips the sidebar, so this is
+    /// the smallest window the layout genuinely supports. The inspector is not
+    /// part of the floor — it becomes a sheet before the window gets this
+    /// narrow.
+    static let minimumContentSize = CGSize(width: 544, height: 420)
+    /// Below this detail width the list and inspector can no longer sit side by
+    /// side without clipping, so the inspector switches to its sheet form.
+    static let inspectorColumnMinimumWidth: CGFloat = 620
+
+    private var inspectorAvailable: Bool { model.section == .downloads && model.primaryTaskID != nil }
+
+    private var inspectorColumnVisible: Bool {
+        wantsInspector && inspectorAvailable && detailWidth >= Self.inspectorColumnMinimumWidth
+    }
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $model.section) {
                 Section(LocalizedStringKey("sidebar.library")) {
                     Label(LocalizedStringKey("downloads.title"), systemImage: SidebarSection.downloads.icon).tag(SidebarSection.downloads)
@@ -547,46 +576,144 @@ struct MainWindow: View {
                 }
             }
             .listStyle(.sidebar)
+            .lineLimit(1)
             .navigationTitle(LocalizedStringKey("app.title"))
-            .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 320)
             .safeAreaInset(edge: .bottom) { SidebarStatus(model: model) }
         } detail: {
+            detailColumn
+        }
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: Self.minimumContentSize.width, minHeight: Self.minimumContentSize.height)
+        .background(WindowMinimumSize(minimum: Self.minimumContentSize))
+        .toolbar { toolbarContent }
+        .sheet(isPresented: $model.isShowingNewDownload) { NewDownloadSheet(model: model) }
+        .sheet(isPresented: $showingInspectorSheet) { inspectorSheet }
+        .alert(LocalizedStringKey("app.title"), isPresented: Binding(get: { model.lastError != nil }, set: { if !$0 { model.lastError = nil } })) { Button(LocalizedStringKey("common.ok")) {} } message: { Text(model.lastError ?? "") }
+        .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
+        .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
+    }
+
+    @ViewBuilder private var detailColumn: some View {
+        Group {
             switch model.section {
             case .downloads:
-                if let id = model.primaryTaskID, let task = model.tasks.first(where: { $0.id == id }) {
-                    HSplitView {
-                        DownloadList(model: model).frame(minWidth: 340, idealWidth: 560)
-                        TaskInspector(model: model, task: task, progress: model.progress[id]).frame(minWidth: 360, idealWidth: 420)
-                    }
-                } else {
-                    DownloadList(model: model)
-                }
+                DownloadsDetail(
+                    model: model,
+                    inspectorVisible: inspectorColumnVisible
+                )
             case .queues: QueueList(model: model)
             case .categories: CategoriesView(model: model)
             case .history: HistoryList(model: model)
             case .settings: SettingsView(model: model)
             }
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 900, minHeight: 600)
-        .toolbar {
-            if model.section == .downloads {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { model.isShowingNewDownload = true } label: { Label(LocalizedStringKey("toolbar.newDownload"), systemImage: "plus") }
-                        .help(LocalizedStringKey("toolbar.newDownload"))
-                }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
+    }
+
+    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
+        if model.section == .downloads {
+            ToolbarItem(placement: .primaryAction) {
+                Button { model.isShowingNewDownload = true } label: { Label(LocalizedStringKey("toolbar.newDownload"), systemImage: "plus") }
+                    .help(LocalizedStringKey("toolbar.newDownload"))
             }
-            ToolbarItem(placement: .automatic) {
-                Button { Task { await model.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                    .help(LocalizedStringKey("toolbar.refresh"))
-                    .accessibilityLabel(LocalizedStringKey("toolbar.refresh"))
+            ToolbarItem(placement: .primaryAction) {
+                Button { toggleInspector() } label: { Image(systemName: "sidebar.right") }
+                    .help(LocalizedStringKey("toolbar.inspector"))
+                    .accessibilityLabel(LocalizedStringKey("toolbar.inspector"))
+                    .disabled(!inspectorAvailable)
             }
         }
-        .sheet(isPresented: $model.isShowingNewDownload) { NewDownloadSheet(model: model) }
-        .alert(LocalizedStringKey("app.title"), isPresented: Binding(get: { model.lastError != nil }, set: { if !$0 { model.lastError = nil } })) { Button(LocalizedStringKey("common.ok")) {} } message: { Text(model.lastError ?? "") }
-        .preferredColorScheme(model.settings.theme == .dark ? .dark : model.settings.theme == .light ? .light : nil)
-        .environment(\.locale, Locale(identifier: model.settings.language ?? "zh-Hans"))
-            .environment(\.appLanguage, model.settings.language ?? "zh-Hans")
+        ToolbarItem(placement: .automatic) {
+            Button { Task { await model.refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                .help(LocalizedStringKey("toolbar.refresh"))
+                .accessibilityLabel(LocalizedStringKey("toolbar.refresh"))
+        }
+    }
+
+    /// Wide enough: the inspector is a normal column and the button toggles it.
+    /// Narrow: the column would clip, so the inspector opens as a sheet instead
+    /// of forcing the window wider than it can lay out.
+    private func toggleInspector() {
+        guard inspectorAvailable else { return }
+        if detailWidth >= Self.inspectorColumnMinimumWidth {
+            wantsInspector.toggle()
+        } else {
+            showingInspectorSheet = true
+        }
+    }
+
+    @ViewBuilder private var inspectorSheet: some View {
+        if let id = model.primaryTaskID, let task = model.tasks.first(where: { $0.id == id }) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text(LocalizedStringKey("task.details")).font(.headline)
+                    Spacer()
+                    Button(LocalizedStringKey("common.ok")) { showingInspectorSheet = false }
+                }.padding()
+                Divider()
+                TaskInspector(model: model, task: task, progress: model.progress[id])
+            }
+            .frame(minWidth: 380, minHeight: 420)
+        }
+    }
+}
+
+/// The downloads page detail pane. The inspector column only exists when the
+/// detail area is genuinely wide enough; below that threshold the same
+/// inspector is offered as a sheet (`MainWindow.inspectorSheet`), so three
+/// panes are never crammed into a window that cannot hold them. Keeping the
+/// inspector's presence as a boolean parameter instead of an `if/else` of two
+/// separate root views also keeps the result builder shallow (the SwiftUI
+/// type-checker crashes on the old branching form with this toolchain).
+///
+/// Uses a plain `HStack` rather than `HSplitView`. `HSplitView` wraps
+/// `NSSplitView`, which enforces a large hard minimum on its arranged subviews
+/// regardless of their `frame(minWidth:)` — measured at ~528pt for this
+/// content. A window narrower than sidebar + that floor cannot shrink the
+/// detail column at all, so the split view overflows and the sidebar's icons
+/// and titles are pushed off the leading edge. The divider here is not
+/// user-draggable, which is the intended behaviour: the inspector's width is
+/// governed by `inspectorColumnVisible`, not by a drag position that can be
+/// left in an unsatisfiable state.
+private struct DownloadsDetail: View {
+    @ObservedObject var model: AppModel
+    var inspectorVisible: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            DownloadList(model: model)
+                .frame(minWidth: 300, maxWidth: .infinity)
+            if inspectorVisible, let id = model.primaryTaskID, let task = model.tasks.first(where: { $0.id == id }) {
+                Divider()
+                TaskInspector(model: model, task: task, progress: model.progress[id])
+                    .frame(minWidth: 280, idealWidth: 340, maxWidth: 460)
+            }
+        }
+    }
+}
+
+/// Declares the real minimum content size on the hosting `NSWindow`.
+///
+/// `WindowGroup.defaultSize` is only a hint, and a large `.frame(minWidth:)` on
+/// the split view inflates the *content* minimum into a floor the collapsing
+/// columns cannot actually satisfy. Setting `contentMinSize` is the documented
+/// AppKit way to state a size the layout genuinely supports.
+private struct WindowMinimumSize: NSViewRepresentable {
+    let minimum: CGSize
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentHuggingPriority(.defaultLow, for: .vertical)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = nsView.window, window.contentMinSize != minimum else { return }
+            window.contentMinSize = minimum
+        }
     }
 }
 
@@ -842,26 +969,45 @@ struct QueueList: View {
     @State private var editingQueue: DownloadQueue?
     var body: some View {
         List {
-            ForEach(model.queues.sorted { $0.order < $1.order }) { queue in
-                HStack {
-                    Button { Task { await model.toggleQueue(queue) } } label: { Image(systemName: queue.isRunning ? "play.circle.fill" : "pause.circle") }.buttonStyle(.borderless).accessibilityLabel(queue.isRunning ? "Stop \(queue.name)" : "Start \(queue.name)")
-                    Text(queue.name)
-                    Button { editingQueue = queue } label: { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("queue.edit"))
-                    Spacer()
-                    Text(AppLocalization.format("task.maxConnections", language: language, queue.concurrencyLimit)).font(.caption).foregroundStyle(.secondary)
-                    if model.queues.count > 1 { Button { Task { await model.deleteQueue(queue) } } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("common.delete")) }
-                }
+            ForEach(sortedQueues) { queue in
+                QueueRow(model: model, queue: queue, editing: { editingQueue = queue })
             }
-            .onMove { offsets, destination in
-                let ids = model.queues.sorted { $0.order < $1.order }.map(\.id)
-                var reordered = ids; reordered.move(fromOffsets: offsets, toOffset: destination)
-                Task { try? await model.store?.reorderQueues(ids: reordered); await model.refresh() }
-            }
+            .onMove(perform: move)
         }
         .toolbar { Button { showingNewQueue = true } label: { Label(LocalizedStringKey("queue.new"), systemImage: "plus") } }
         .navigationTitle(LocalizedStringKey("queues.title"))
         .sheet(isPresented: $showingNewQueue) { NewQueueSheet(model: model) }
         .sheet(item: $editingQueue) { QueueEditSheet(model: model, queue: $0) }
+    }
+
+    private var sortedQueues: [DownloadQueue] {
+        model.queues.sorted { $0.order < $1.order }
+    }
+
+    private func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        var reordered = sortedQueues.map(\.id)
+        reordered.move(fromOffsets: offsets, toOffset: destination)
+        Task { try? await model.store?.reorderQueues(ids: reordered); await model.refresh() }
+    }
+}
+
+/// One queue row, factored into its own view so the `QueueList` builder stays
+/// shallow (see `QueueEditSheet` note about the type-checker).
+private struct QueueRow: View {
+    @ObservedObject var model: AppModel
+    let queue: DownloadQueue
+    @Environment(\.appLanguage) private var language
+    let editing: () -> Void
+
+    var body: some View {
+        HStack {
+            Button { Task { await model.toggleQueue(queue) } } label: { Image(systemName: queue.isRunning ? "play.circle.fill" : "pause.circle") }.buttonStyle(.borderless).accessibilityLabel(queue.isRunning ? "Stop \(queue.name)" : "Start \(queue.name)")
+            Text(queue.name)
+            Button(action: editing) { Image(systemName: "pencil") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("queue.edit"))
+            Spacer()
+            Text(AppLocalization.format("task.maxConnections", language: language, queue.concurrencyLimit)).font(.caption).foregroundStyle(.secondary)
+            if model.queues.count > 1 { Button { Task { await model.deleteQueue(queue) } } label: { Image(systemName: "trash") }.buttonStyle(.borderless).accessibilityLabel(LocalizedStringKey("common.delete")) }
+        }
     }
 }
 
@@ -889,22 +1035,57 @@ struct QueueEditSheet: View {
     init(model: AppModel, queue: DownloadQueue) { self.model = model; _queue = State(initialValue: queue); let schedule = queue.schedule ?? QueueSchedule(); _scheduleEnabled = State(initialValue: queue.schedule != nil); _startText = State(initialValue: QueueEditSheet.time(schedule.startSeconds)); _endText = State(initialValue: QueueEditSheet.time(schedule.endSeconds)); _weekdays = State(initialValue: schedule.weekdays) }
     var body: some View {
         Form {
-            TextField(LocalizedStringKey("queue.name"), text: $queue.name)
-            Stepper(AppLocalization.format("queue.concurrentCount", language: language, queue.concurrencyLimit), value: $queue.concurrencyLimit, in: 1...64)
-            Toggle(LocalizedStringKey("queue.schedule"), isOn: $scheduleEnabled)
-            if scheduleEnabled {
-                HStack { TextField(LocalizedStringKey("queue.start"), text: $startText); TextField(LocalizedStringKey("queue.end"), text: $endText) }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4)) { ForEach(QueueSchedule.Weekday.allCases, id: \.self) { day in Toggle(weekdayKey(day), isOn: Binding(get: { weekdays.contains(day) }, set: { if $0 { weekdays.insert(day) } else { weekdays.remove(day) } })) } }
-                Text(LocalizedStringKey("queue.overnight")).font(.caption).foregroundStyle(.secondary)
+            Section {
+                TextField(LocalizedStringKey("queue.name"), text: $queue.name)
+                Stepper(AppLocalization.format("queue.concurrentCount", language: language, queue.concurrencyLimit), value: $queue.concurrencyLimit, in: 1...64)
+                Toggle(LocalizedStringKey("queue.schedule"), isOn: $scheduleEnabled)
             }
-            Picker(LocalizedStringKey("queue.completion"), selection: $queue.completionAction) { ForEach(QueueCompletionAction.allCases) { Text(completionActionKey($0)).tag($0) } }
+            Section {
+                if scheduleEnabled {
+                    HStack { TextField(LocalizedStringKey("queue.start"), text: $startText); TextField(LocalizedStringKey("queue.end"), text: $endText) }
+                    ScheduleWeekdayGrid(weekdays: $weekdays)
+                    Text(LocalizedStringKey("queue.overnight")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            completionSection
+        }
+        .padding().frame(width: 520)
+        .alert(LocalizedStringKey("queue.confirmTitle"), isPresented: $showPowerConfirmation) {
+            Button(LocalizedStringKey("newDownload.cancel"), role: .cancel) {}
+            Button(LocalizedStringKey("queue.enable")) { save() }
+        } message: { Text(LocalizedStringKey("queue.confirmMessage")) }
+    }
+
+    @ViewBuilder private var completionSection: some View {
+        Section {
+            Picker(LocalizedStringKey("queue.completion"), selection: $queue.completionAction) {
+                ForEach(QueueCompletionAction.allCases) { Text(completionActionKey($0)).tag($0) }
+            }
             Text(LocalizedStringKey("queue.completionWarning")).font(.caption).foregroundStyle(.secondary)
-            HStack { Spacer(); Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }; Button(LocalizedStringKey("task.save")) { if queue.completionAction.isPowerAction { showPowerConfirmation = true } else { save() } }.keyboardShortcut(.defaultAction) }
-        }.padding().frame(width: 520).alert(LocalizedStringKey("queue.confirmTitle"), isPresented: $showPowerConfirmation) { Button(LocalizedStringKey("newDownload.cancel"), role: .cancel) {}; Button(LocalizedStringKey("queue.enable")) { save() } } message: { Text(LocalizedStringKey("queue.confirmMessage")) }
+            HStack {
+                Spacer()
+                Button(LocalizedStringKey("newDownload.cancel")) { dismiss() }
+                Button(LocalizedStringKey("task.save")) { if queue.completionAction.isPowerAction { showPowerConfirmation = true } else { save() } }.keyboardShortcut(.defaultAction)
+            }
+        }
     }
     private func save() { var value = queue; if scheduleEnabled, let start = QueueEditSheet.seconds(startText), let end = QueueEditSheet.seconds(endText) { value.schedule = QueueSchedule(weekdays: weekdays, startSeconds: start, endSeconds: end) } else { value.schedule = nil }; Task { await model.updateQueue(value); dismiss() } }
     static func seconds(_ text: String) -> Int? { let pair = text.split(separator: ":").compactMap { Int($0) }; guard pair.count == 2, pair[0] >= 0, pair[0] < 24, pair[1] >= 0, pair[1] < 60 else { return nil }; return pair[0] * 3600 + pair[1] * 60 }
     static func time(_ seconds: Int) -> String { String(format: "%02d:%02d", seconds / 3600, (seconds % 3600) / 60) }
+}
+
+/// The weekday multi-select grid, kept as its own small view so the queue
+/// editor's `Form` stays shallow and the SwiftUI type-checker cannot blow up on
+/// one giant builder expression.
+private struct ScheduleWeekdayGrid: View {
+    @Binding var weekdays: Set<QueueSchedule.Weekday>
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4)) {
+            ForEach(QueueSchedule.Weekday.allCases, id: \.self) { day in
+                Toggle(weekdayKey(day), isOn: Binding(get: { weekdays.contains(day) }, set: { if $0 { weekdays.insert(day) } else { weekdays.remove(day) } }))
+            }
+        }
+    }
 }
 
 struct HistoryList: View { @ObservedObject var model: AppModel; var body: some View { List(model.history) { record in VStack(alignment: .leading) { Text(record.name); Text(record.finishedAt.formatted()).font(.caption).foregroundStyle(.secondary); Button(LocalizedStringKey("history.reveal")) { NSWorkspace.shared.selectFile(record.folderPath + "/" + record.fileName, inFileViewerRootedAtPath: record.folderPath) }.buttonStyle(.link) } }.toolbar { Button(LocalizedStringKey("history.clear")) { Task { guard let store = model.store else { return }; try? await store.clearHistory(); await model.refresh() } } }.navigationTitle(LocalizedStringKey("history.title")) } }

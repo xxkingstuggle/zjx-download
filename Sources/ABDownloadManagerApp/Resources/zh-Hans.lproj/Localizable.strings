@@ -720,6 +720,7 @@
 "thursday" = "星期四";
 "time_left" = "剩余时间";
 "toolbar.checksum" = "校验和";
+"toolbar.inspector" = "检查器";
 "toolbar.newDownload" = "新建下载";
 "toolbar.refresh" = "刷新";
 "tools" = "工具";

@@ -188,6 +188,7 @@
 "theme.light" = "Light";
 "theme.system" = "System";
 "toolbar.checksum" = "Checksum";
+"toolbar.inspector" = "Inspector";
 "toolbar.newDownload" = "New Download";
 "toolbar.refresh" = "Refresh";
 "update.disabled" = "Disabled";
