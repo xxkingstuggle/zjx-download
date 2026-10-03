@@ -29,6 +29,9 @@ public struct RESTAddOperation: Sendable {
     public init(request: DownloadRequest, options: RESTAddOptions = RESTAddOptions(), startQueue: Bool = false) {
         self.request = request; self.options = options; self.startQueue = startQueue
     }
+
+    public var requiresUserConfirmation: Bool { !options.silentAdd }
+    public var shouldStartImmediately: Bool { options.silentStart || request.startImmediately }
 }
 
 public actor RESTService {
@@ -40,8 +43,20 @@ public actor RESTService {
     private let queueProvider: @Sendable () async -> [DownloadQueue]
     private var listener: NWListener?
 
+    public enum ConfigurationError: Error, LocalizedError, Equatable, Sendable {
+        case invalidPort
+        case missingAPIKey
+        public var errorDescription: String? {
+            switch self {
+            case .invalidPort: "The integration port must be between 1 and 65535."
+            case .missingAPIKey: "Set an API key before enabling API authentication."
+            }
+        }
+    }
+
     public init(settings: IntegrationSettings, addHandler: @escaping AddHandler, queueProvider: @escaping @Sendable () async -> [DownloadQueue]) throws {
-        guard settings.port > 0 && settings.port <= 65535 else { throw URLError(.badURL) }
+        guard settings.port > 0 && settings.port <= 65535 else { throw ConfigurationError.invalidPort }
+        guard !settings.authEnabled || !settings.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ConfigurationError.missingAPIKey }
         port = UInt16(settings.port); apiKey = settings.enforcedKey; self.addHandler = addHandler; self.queueProvider = queueProvider
     }
 
@@ -103,8 +118,8 @@ public actor RESTService {
         let method = String(components[0]), path = String(components[1])
         var headers: [String: String] = [:]
         for line in lines.dropFirst() { let pair = line.split(separator: ":", maxSplits: 1).map(String.init); if pair.count == 2 { headers[pair[0].lowercased()] = pair[1].trimmingCharacters(in: .whitespaces) } }
-        if let apiKey, headers["x-api-key"] != apiKey { respond(connection, status: 401, body: "Unauthorized"); return }
         if method == "OPTIONS" { respond(connection, status: 204, body: ""); return }
+        if let apiKey, headers["x-api-key"] != apiKey { respond(connection, status: 401, body: "Unauthorized"); return }
         do {
             switch (method, path) {
             case ("POST", "/ping"): respond(connection, status: 200, body: "pong")

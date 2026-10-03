@@ -16,3 +16,10 @@ DerivedData/
 .xcconfig.local
 *.p12
 *.mobileprovision
+
+# Local acceptance records and agent tooling
+.playwright-cli/
+output/
+docs/native-completeness-audit/evidence/
+docs/native-completeness-audit/scripts/
+docs/native-completeness-audit/*taskbook*.md

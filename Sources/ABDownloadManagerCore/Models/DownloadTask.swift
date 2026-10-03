@@ -29,6 +29,13 @@ public struct DownloadTask: Codable, Sendable, Identifiable, Hashable {
     public var supportsRanges: Bool
     /// Number of worker connections actually used.
     public var connectionCount: Int
+    /// User/host-specific preferred connection count. `nil` means inherit the
+    /// global setting. `connectionCount` remains the realized server-capable
+    /// count for the current download.
+    public var connectionCountOverride: Int?
+    /// Captures the incomplete-name rule at task creation so a settings change
+    /// cannot strand an existing partial file under a different path.
+    public var appendExtensionToIncompleteDownloads: Bool
 
     public var queueID: Int64?
     public var categoryID: Int64?
@@ -69,6 +76,8 @@ public struct DownloadTask: Codable, Sendable, Identifiable, Hashable {
         validator: ResourceValidator = ResourceValidator(),
         supportsRanges: Bool = false,
         connectionCount: Int = 1,
+        connectionCountOverride: Int? = nil,
+        appendExtensionToIncompleteDownloads: Bool = false,
         queueID: Int64? = nil,
         categoryID: Int64? = nil,
         expectedChecksum: String? = nil,
@@ -96,6 +105,8 @@ public struct DownloadTask: Codable, Sendable, Identifiable, Hashable {
         self.validator = validator
         self.supportsRanges = supportsRanges
         self.connectionCount = connectionCount
+        self.connectionCountOverride = connectionCountOverride.map { min(max($0, 1), 64) }
+        self.appendExtensionToIncompleteDownloads = appendExtensionToIncompleteDownloads
         self.queueID = queueID
         self.categoryID = categoryID
         self.expectedChecksum = expectedChecksum
@@ -123,7 +134,7 @@ public struct DownloadTask: Codable, Sendable, Identifiable, Hashable {
     /// the original settings; `PartFileNaming` centralises that decision so
     /// the engine and the UI agree on the location.
     public var partFilePath: String {
-        filePath + PartFileNaming.incompleteSuffix
+        (folderPath as NSString).appendingPathComponent(PartFileNaming.incompleteFileName(fileName, appendOriginalExtension: appendExtensionToIncompleteDownloads))
     }
 
     public var progress: Double {
@@ -146,11 +157,23 @@ public struct DownloadTask: Codable, Sendable, Identifiable, Hashable {
 public enum PartFileNaming {
     /// Suffix appended to the destination while a download is incomplete.
     public static let incompleteSuffix = ".abpart"
+
+    public static func incompleteFileName(_ fileName: String, appendOriginalExtension: Bool) -> String {
+        guard appendOriginalExtension else { return fileName + incompleteSuffix }
+        let name = fileName as NSString
+        let ext = name.pathExtension
+        guard !ext.isEmpty else { return fileName + incompleteSuffix }
+        return name.deletingPathExtension + incompleteSuffix + "." + ext
+    }
+
+    public static func partFileName(_ fileName: String, id: UUID, appendOriginalExtension: Bool) -> String {
+        "." + incompleteFileName(fileName, appendOriginalExtension: appendOriginalExtension) + "." + id.uuidString
+    }
 }
 
 extension DownloadTask {
     private enum CodingKeys: String, CodingKey {
-        case id, source, folderPath, fileName, status, priority, totalSize, downloadedSize, parts, validator, supportsRanges, connectionCount, queueID, categoryID, expectedChecksum, actualChecksum, createdAt, startedAt, completedAt, errorMessage, retryCount, speedLimit, downloadPage, kind, conflictPolicy, isQueued
+        case id, source, folderPath, fileName, status, priority, totalSize, downloadedSize, parts, validator, supportsRanges, connectionCount, connectionCountOverride, appendExtensionToIncompleteDownloads, queueID, categoryID, expectedChecksum, actualChecksum, createdAt, startedAt, completedAt, errorMessage, retryCount, speedLimit, downloadPage, kind, conflictPolicy, isQueued
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -160,6 +183,8 @@ extension DownloadTask {
         totalSize = try c.decodeIfPresent(Int64.self, forKey: .totalSize); downloadedSize = try c.decode(Int64.self, forKey: .downloadedSize)
         parts = try c.decode([DownloadPart].self, forKey: .parts); validator = try c.decode(ResourceValidator.self, forKey: .validator)
         supportsRanges = try c.decode(Bool.self, forKey: .supportsRanges); connectionCount = try c.decode(Int.self, forKey: .connectionCount)
+        connectionCountOverride = try c.decodeIfPresent(Int.self, forKey: .connectionCountOverride)
+        appendExtensionToIncompleteDownloads = try c.decodeIfPresent(Bool.self, forKey: .appendExtensionToIncompleteDownloads) ?? false
         queueID = try c.decodeIfPresent(Int64.self, forKey: .queueID); categoryID = try c.decodeIfPresent(Int64.self, forKey: .categoryID)
         expectedChecksum = try c.decodeIfPresent(String.self, forKey: .expectedChecksum); actualChecksum = try c.decodeIfPresent(String.self, forKey: .actualChecksum)
         createdAt = try c.decode(Date.self, forKey: .createdAt); startedAt = try c.decodeIfPresent(Date.self, forKey: .startedAt); completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
@@ -169,6 +194,6 @@ extension DownloadTask {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id); try c.encode(source, forKey: .source); try c.encode(folderPath, forKey: .folderPath); try c.encode(fileName, forKey: .fileName)
-        try c.encode(status, forKey: .status); try c.encode(priority, forKey: .priority); try c.encodeIfPresent(totalSize, forKey: .totalSize); try c.encode(downloadedSize, forKey: .downloadedSize); try c.encode(parts, forKey: .parts); try c.encode(validator, forKey: .validator); try c.encode(supportsRanges, forKey: .supportsRanges); try c.encode(connectionCount, forKey: .connectionCount); try c.encodeIfPresent(queueID, forKey: .queueID); try c.encodeIfPresent(categoryID, forKey: .categoryID); try c.encodeIfPresent(expectedChecksum, forKey: .expectedChecksum); try c.encodeIfPresent(actualChecksum, forKey: .actualChecksum); try c.encode(createdAt, forKey: .createdAt); try c.encodeIfPresent(startedAt, forKey: .startedAt); try c.encodeIfPresent(completedAt, forKey: .completedAt); try c.encodeIfPresent(errorMessage, forKey: .errorMessage); try c.encode(retryCount, forKey: .retryCount); try c.encode(speedLimit, forKey: .speedLimit); try c.encodeIfPresent(downloadPage, forKey: .downloadPage); try c.encode(kind, forKey: .kind); try c.encode(conflictPolicy, forKey: .conflictPolicy); try c.encode(isQueued, forKey: .isQueued)
+        try c.encode(status, forKey: .status); try c.encode(priority, forKey: .priority); try c.encodeIfPresent(totalSize, forKey: .totalSize); try c.encode(downloadedSize, forKey: .downloadedSize); try c.encode(parts, forKey: .parts); try c.encode(validator, forKey: .validator); try c.encode(supportsRanges, forKey: .supportsRanges); try c.encode(connectionCount, forKey: .connectionCount); try c.encodeIfPresent(connectionCountOverride, forKey: .connectionCountOverride); try c.encode(appendExtensionToIncompleteDownloads, forKey: .appendExtensionToIncompleteDownloads); try c.encodeIfPresent(queueID, forKey: .queueID); try c.encodeIfPresent(categoryID, forKey: .categoryID); try c.encodeIfPresent(expectedChecksum, forKey: .expectedChecksum); try c.encodeIfPresent(actualChecksum, forKey: .actualChecksum); try c.encode(createdAt, forKey: .createdAt); try c.encodeIfPresent(startedAt, forKey: .startedAt); try c.encodeIfPresent(completedAt, forKey: .completedAt); try c.encodeIfPresent(errorMessage, forKey: .errorMessage); try c.encode(retryCount, forKey: .retryCount); try c.encode(speedLimit, forKey: .speedLimit); try c.encodeIfPresent(downloadPage, forKey: .downloadPage); try c.encode(kind, forKey: .kind); try c.encode(conflictPolicy, forKey: .conflictPolicy); try c.encode(isQueued, forKey: .isQueued)
     }
 }

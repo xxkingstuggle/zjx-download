@@ -1,0 +1,266 @@
+{
+  "extension_name": {
+    "message": "zjx-download"
+  },
+  "extension_short_name": {
+    "message": "zjx-download"
+  },
+  "extension_description": {
+    "message": "Send browser downloads to the zjx-download macOS app."
+  },
+  "selection_popup_download_selected": {
+    "message": "Download selected"
+  },
+  "popup_alert_no_link_detected": {
+    "message": "No links detected"
+  },
+  "popup_alert_nothing_selected": {
+    "message": "Please first make a selection"
+  },
+  "context_menu_download_with_abdm": {
+    "message": "Download with zjx-download"
+  },
+  "context_menu_download_selected_links_with_abdm": {
+    "message": "Download selected links with zjx-download"
+  },
+  "browser_action_popup_title": {
+    "message": "zjx-download Quick Settings"
+  },
+  "option_ui_title": {
+    "message": "zjx-download Extension Settings"
+  },
+  "connection_connected": {
+    "message": "Connected"
+  },
+  "connection_not_connected": {
+    "message": "Not Connected"
+  },
+  "connection_checking": {
+    "message": "Checking"
+  },
+  "config_auto_capture_links": {
+    "message": "Auto Capture Links"
+  },
+  "config_auto_capture_links_description": {
+    "message": "When you click a supported link, zjx-download captures it for download."
+  },
+  "reset_to_default": {
+    "message": "Reset to default"
+  },
+  "config_auto_capture_links_file_extensions_description": {
+    "message": "Enter each file extension that you want to be captured then press enter"
+  },
+  "config_blacklisted_urls_description": {
+    "message": "Enter URLs you don't want to be captured (one per line, wildcards (*) supported)"
+  },
+  "config_silent_add_download": {
+    "message": "Add downloads silently"
+  },
+  "config_silent_add_download_description": {
+    "message": "Automatically add captured downloads to the download list without showing the \"Add Download\" window"
+  },
+  "config_silent_start_download": {
+    "message": "Start download silently"
+  },
+  "config_silent_start_download_description": {
+    "message": "Automatically start captured downloads without showing the \"Add Download\" window"
+  },
+  "config_show_popups": {
+    "message": "Show popups"
+  },
+  "config_show_popups_description": {
+    "message": "Show popup on selections which have links"
+  },
+  "config_native_messaging_host": {
+    "message": "Native Messaging"
+  },
+  "config_native_messaging_host_description": {
+    "message": "When the extension intercepts a new download, it will automatically launch the app even if its not already running."
+  },
+  "config_native_messaging_host_reachable": {
+    "message": "Host Is Reachable"
+  },
+  "config_native_messaging_host_not_reachable": {
+    "message": "Host Is Not Reachable"
+  },
+  "config_port": {
+    "message": "Port"
+  },
+  "config_port_description": {
+    "message": "Make sure this port and the value in the app are the same otherwise this extension will not work properly"
+  },
+  "config_api_key": {
+    "message": "API Key"
+  },
+  "config_api_key_description": {
+    "message": "If you enabled API key authentication in the app settings, paste the generated API key here."
+  },
+  "config_port_connection_success": {
+    "message": "Success\nPort ($port$) Is connected",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "config_port_connection_fail": {
+    "message": "Failure\nPort ($port$) not connected",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "config_send_cookies": {
+    "message": "Send Cookies"
+  },
+  "config_send_cookies_descrption": {
+    "message": "Note: DON'T check this if you are in a non-trusted environment"
+  },
+  "config_fallback_to_browser": {
+    "message": "Continue the browser download if zjx-download is unavailable"
+  },
+  "config_fallback_to_browser_description": {
+    "message": "When zjx-download cannot accept a captured download, keep Chrome's original download running."
+  },
+  "browser_action_more_settings": {
+    "message": "More settings"
+  },
+  "connection_error_api_error": {
+    "message": "zjx-download could not process the request. Update the app and extension to compatible versions, then try again."
+  },
+  "connection_error_network_error": {
+    "message": "Can't connect to zjx-download. Make sure the app is running and Browser Integration is enabled in its settings."
+  },
+  "settings": {
+    "message": "Settings"
+  },
+  "test": {
+    "message": "Test"
+  },
+  "note_about_app_must_be_installed_first": {
+    "message": "Install and open zjx-download, then enable Browser Integration in app settings."
+  },
+  "download_abdm_app": {
+    "message": "Download The App"
+  },
+  "project_website": {
+    "message": "Project Home"
+  },
+  "support_by_rating": {
+    "message": "Report a problem or request a feature"
+  },
+  "project_source_code": {
+    "message": "Project Source Code"
+  },
+  "abdm_notification_title": {
+    "message": "zjx-download"
+  },
+  "abdm_notification_download_captured_silently": {
+    "message": "Download sent to zjx-download"
+  },
+  "download_media_title": {
+    "message": "Download media with zjx-download"
+  },
+  "config_capture_file_size_limit_kb": {
+    "message": "Capture file size minimum (KB)"
+  },
+  "config_capture_file_size_limit_kb_description": {
+    "message": "Only capture files with size greater than or equal to this value in kilobytes. Set 0 to capture all sizes."
+  },
+  "config_bypass_shortcut": {
+    "message": "Bypass Shortcut"
+  },
+  "config_press_a_key": {
+    "message": "Press a key or a combination..."
+  },
+  "config_bypass_shortcut_control_mac_warning": {
+    "message": "On macOS, Control + click is the secondary click, so the click never reaches the page. Pick another key."
+  },
+  "config_bypass_shortcut_description": {
+    "message": "When auto-capture of download links is enabled, holding down the shortcut key and clicking on the download link uses the internal browser download method."
+  },
+  "config_silent_add_download_description_short": {
+    "message": "Add captured links without asking first."
+  },
+  "connection_status_help": {
+    "message": "Open zjx-download and enable Browser Integration in Settings, then check the port and API key below."
+  },
+  "settings_group_connection": {
+    "message": "Connection"
+  },
+  "settings_group_connection_description": {
+    "message": "Connect the extension to the running zjx-download app."
+  },
+  "settings_group_download_handoff": {
+    "message": "Download handoff"
+  },
+  "settings_group_download_handoff_description": {
+    "message": "Choose which links to capture and how zjx-download receives them."
+  },
+  "settings_group_website_rules": {
+    "message": "Website rules"
+  },
+  "settings_group_website_rules_description": {
+    "message": "Limit capture by file type, address, size, or a bypass shortcut."
+  },
+  "settings_group_advanced": {
+    "message": "Advanced"
+  },
+  "settings_group_advanced_description": {
+    "message": "Control request headers sent with captured downloads."
+  },
+  "connection_test_running": {
+    "message": "Testing…"
+  },
+  "connection_test_checking": {
+    "message": "Checking zjx-download on port $port$…",
+    "placeholders": {"port": {"content": "$1", "example": "15151"}}
+  },
+  "connection_test_success": {
+    "message": "Connected to zjx-download on port $port$.",
+    "placeholders": {"port": {"content": "$1", "example": "15151"}}
+  },
+  "connection_test_failure": {
+    "message": "Could not connect to zjx-download on port $port$. Check that the app is open, Browser Integration is enabled, and the API key is correct.",
+    "placeholders": {"port": {"content": "$1", "example": "15151"}}
+  },
+  "api_key_show": {
+    "message": "Show"
+  },
+  "api_key_hide": {
+    "message": "Hide"
+  },
+  "config_file_extensions": {
+    "message": "Captured file extensions"
+  },
+  "config_ignored_url_patterns": {
+    "message": "Ignored URL patterns"
+  },
+  "config_no_limit_or_custom": {
+    "message": "No limit / custom value"
+  },
+  "config_custom_value": {
+    "message": "Custom value"
+  },
+  "config_enter_kb": {
+    "message": "Enter a value in KB"
+  },
+  "config_close_captured_tab": {
+    "message": "Close a new tab after capture"
+  },
+  "config_close_captured_tab_description": {
+    "message": "Close the new tab when a captured download was opened in a separate tab."
+  },
+  "config_native_messaging_checking": {
+    "message": "Checking native host…"
+  },
+  "close": {
+    "message": "Close"
+  },
+  "media_unnamed": {
+    "message": "Unnamed media"
+  }
+}

@@ -35,6 +35,35 @@ public struct BatchURLPattern: Sendable, Equatable {
         return url
     }
     public func allLinks() throws -> [URL] { try (start...end).map(link(at:)) }
+
+    /// Builds one request per generated link while preserving every shared
+    /// option from the batch form.
+    public func downloadRequests(
+        folderPath: String?,
+        headers: [String: String],
+        expectedChecksum: String?,
+        speedLimit: Int64,
+        connectionCountOverride: Int?,
+        queueID: Int64?,
+        categoryID: Int64?,
+        conflictPolicy: FileConflictPolicy,
+        startImmediately: Bool
+    ) throws -> [DownloadRequest] {
+        try allLinks().map { url in
+            DownloadRequest(
+                source: DownloadSource(url: url, headers: headers),
+                folderPath: folderPath,
+                queueID: queueID,
+                categoryID: categoryID,
+                kind: url.pathExtension.lowercased() == "m3u8" ? .hls : .http,
+                startImmediately: startImmediately,
+                conflictPolicy: conflictPolicy,
+                expectedChecksum: expectedChecksum,
+                speedLimit: speedLimit,
+                connectionCountOverride: connectionCountOverride
+            )
+        }
+    }
 }
 
 private extension String {

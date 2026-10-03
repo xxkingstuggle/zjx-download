@@ -1,0 +1,281 @@
+{
+  "extension_name": {
+    "message": "zjx-download"
+  },
+  "extension_short_name": {
+    "message": "zjx-download"
+  },
+  "extension_description": {
+    "message": "将浏览器下载发送到 zjx-download macOS 应用。"
+  },
+  "selection_popup_download_selected": {
+    "message": "下载所选链接"
+  },
+  "popup_alert_no_link_detected": {
+    "message": "未检测到链接"
+  },
+  "popup_alert_nothing_selected": {
+    "message": "请先选择内容"
+  },
+  "context_menu_download_with_abdm": {
+    "message": "使用 zjx-download 下载"
+  },
+  "context_menu_download_selected_links_with_abdm": {
+    "message": "使用 zjx-download 下载所选链接"
+  },
+  "browser_action_popup_title": {
+    "message": "zjx-download 快捷设置"
+  },
+  "option_ui_title": {
+    "message": "扩展设置"
+  },
+  "connection_connected": {
+    "message": "已连接"
+  },
+  "connection_not_connected": {
+    "message": "未连接"
+  },
+  "connection_checking": {
+    "message": "正在检查"
+  },
+  "config_auto_capture_links": {
+    "message": "自动接管下载链接"
+  },
+  "config_auto_capture_links_description": {
+    "message": "点击支持的下载链接时，由 zjx-download 接管下载。"
+  },
+  "reset_to_default": {
+    "message": "恢复默认值"
+  },
+  "config_auto_capture_links_file_extensions_description": {
+    "message": "输入要接管的文件扩展名，每项之间用空格分隔。"
+  },
+  "config_blacklisted_urls_description": {
+    "message": "输入不接管的 URL，每行一个；支持通配符（*）。"
+  },
+  "config_silent_add_download": {
+    "message": "静默添加下载"
+  },
+  "config_silent_add_download_description": {
+    "message": "自动将接管的下载加入列表，不显示“添加下载”窗口。"
+  },
+  "config_silent_start_download": {
+    "message": "静默开始下载"
+  },
+  "config_silent_start_download_description": {
+    "message": "自动开始接管的下载，不显示“添加下载”窗口。"
+  },
+  "config_show_popups": {
+    "message": "显示页面浮层"
+  },
+  "config_show_popups_description": {
+    "message": "在包含链接的文本选区旁显示下载浮层。"
+  },
+  "config_native_messaging_host": {
+    "message": "原生消息连接"
+  },
+  "config_native_messaging_host_description": {
+    "message": "接管下载时可自动启动桌面应用，即使应用当前未运行。"
+  },
+  "config_native_messaging_host_reachable": {
+    "message": "原生连接可用"
+  },
+  "config_native_messaging_host_not_reachable": {
+    "message": "原生连接不可用"
+  },
+  "config_port": {
+    "message": "应用端口"
+  },
+  "config_port_description": {
+    "message": "此处端口必须与应用中的浏览器集成端口相同。"
+  },
+  "config_api_key": {
+    "message": "API 密钥"
+  },
+  "config_api_key_description": {
+    "message": "如果应用启用了 API 密钥验证，请粘贴应用生成的密钥。"
+  },
+  "config_port_connection_success": {
+    "message": "连接成功\n端口（$port$）可用",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "config_port_connection_fail": {
+    "message": "连接失败\n端口（$port$）不可用",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "config_send_cookies": {
+    "message": "发送请求头和 Cookie"
+  },
+  "config_send_cookies_descrption": {
+    "message": "仅在可信环境中启用；请求头可能包含登录 Cookie。"
+  },
+  "config_fallback_to_browser": {
+    "message": "应用不可用时继续浏览器下载"
+  },
+  "config_fallback_to_browser_description": {
+    "message": "zjx-download 无法接收接管任务时，保留 Chrome 原始下载。"
+  },
+  "browser_action_more_settings": {
+    "message": "更多设置"
+  },
+  "connection_error_api_error": {
+    "message": "zjx-download 无法处理此请求。请更新桌面应用和扩展后重试。"
+  },
+  "connection_error_network_error": {
+    "message": "无法连接 zjx-download。请确认应用正在运行，并已在设置中启用浏览器集成。"
+  },
+  "settings": {
+    "message": "设置"
+  },
+  "test": {
+    "message": "测试连接"
+  },
+  "note_about_app_must_be_installed_first": {
+    "message": "请先安装并打开 zjx-download，再在应用设置中启用浏览器集成。"
+  },
+  "download_abdm_app": {
+    "message": "下载桌面应用"
+  },
+  "project_website": {
+    "message": "项目主页"
+  },
+  "support_by_rating": {
+    "message": "反馈问题或提交功能建议"
+  },
+  "project_source_code": {
+    "message": "项目源码"
+  },
+  "abdm_notification_title": {
+    "message": "zjx-download"
+  },
+  "abdm_notification_download_captured_silently": {
+    "message": "下载已发送到 zjx-download"
+  },
+  "download_media_title": {
+    "message": "使用 zjx-download 下载媒体"
+  },
+  "config_capture_file_size_limit_kb": {
+    "message": "接管文件的最小大小（KB）"
+  },
+  "config_capture_file_size_limit_kb_description": {
+    "message": "仅接管大于或等于此 KB 数值的文件。设为 0 可接管所有大小。"
+  },
+  "config_bypass_shortcut": {
+    "message": "绕过快捷键"
+  },
+  "config_press_a_key": {
+    "message": "按下一个按键或组合键…"
+  },
+  "config_bypass_shortcut_control_mac_warning": {
+    "message": "在 macOS 上，Control + 点击会触发右键，网页收不到该点击。请改用其他按键。"
+  },
+  "config_bypass_shortcut_description": {
+    "message": "启用自动接管时，按住此快捷键并点击下载链接，将使用浏览器自身下载。"
+  },
+  "config_silent_add_download_description_short": {
+    "message": "无需确认，直接添加接管的链接。"
+  },
+  "connection_status_help": {
+    "message": "打开 zjx-download，在设置中启用浏览器集成，然后检查下面的端口和 API 密钥。"
+  },
+  "settings_group_connection": {
+    "message": "连接"
+  },
+  "settings_group_connection_description": {
+    "message": "将扩展连接到正在运行的 zjx-download 应用。"
+  },
+  "settings_group_download_handoff": {
+    "message": "下载接管"
+  },
+  "settings_group_download_handoff_description": {
+    "message": "设置接管哪些链接，以及 zjx-download 如何接收下载。"
+  },
+  "settings_group_website_rules": {
+    "message": "网站规则"
+  },
+  "settings_group_website_rules_description": {
+    "message": "按文件类型、网址、大小或绕过快捷键筛选接管任务。"
+  },
+  "settings_group_advanced": {
+    "message": "高级"
+  },
+  "settings_group_advanced_description": {
+    "message": "设置随接管任务发送的请求头。"
+  },
+  "connection_test_running": {
+    "message": "正在测试…"
+  },
+  "connection_test_checking": {
+    "message": "正在检查 zjx-download 端口 $port$…",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "connection_test_success": {
+    "message": "已连接到 zjx-download（端口 $port$）。",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "connection_test_failure": {
+    "message": "无法连接 zjx-download（端口 $port$）。请检查应用是否打开、浏览器集成是否启用，以及 API 密钥是否正确。",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "15151"
+      }
+    }
+  },
+  "api_key_show": {
+    "message": "显示"
+  },
+  "api_key_hide": {
+    "message": "隐藏"
+  },
+  "config_file_extensions": {
+    "message": "接管的文件扩展名"
+  },
+  "config_ignored_url_patterns": {
+    "message": "忽略的网址模式"
+  },
+  "config_no_limit_or_custom": {
+    "message": "不限大小 / 自定义"
+  },
+  "config_custom_value": {
+    "message": "自定义数值"
+  },
+  "config_enter_kb": {
+    "message": "输入 KB 数值"
+  },
+  "config_close_captured_tab": {
+    "message": "接管后关闭新标签页"
+  },
+  "config_close_captured_tab_description": {
+    "message": "下载链接在新标签页打开并被接管后，自动关闭该标签页。"
+  },
+  "config_native_messaging_checking": {
+    "message": "正在检查原生消息连接…"
+  },
+  "close": {
+    "message": "关闭"
+  },
+  "media_unnamed": {
+    "message": "未命名媒体"
+  }
+}

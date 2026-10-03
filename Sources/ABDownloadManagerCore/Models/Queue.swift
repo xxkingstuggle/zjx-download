@@ -100,10 +100,11 @@ public struct DownloadCategory: Codable, Sendable, Identifiable, Hashable {
     public var acceptedFileTypes: [String]
     public var acceptedURLPatterns: [String]
     public var categoryPath: String?
+    public var icon: String
 
-    public init(id: Int64 = 0, name: String, order: Int = 0, acceptedFileTypes: [String] = [], acceptedURLPatterns: [String] = [], categoryPath: String? = nil) {
+    public init(id: Int64 = 0, name: String, order: Int = 0, acceptedFileTypes: [String] = [], acceptedURLPatterns: [String] = [], categoryPath: String? = nil, icon: String = "folder") {
         self.id = id; self.name = name; self.order = order
-        self.acceptedFileTypes = acceptedFileTypes; self.acceptedURLPatterns = acceptedURLPatterns; self.categoryPath = categoryPath
+        self.acceptedFileTypes = acceptedFileTypes; self.acceptedURLPatterns = acceptedURLPatterns; self.categoryPath = categoryPath; self.icon = icon
     }
 }
 
@@ -155,17 +156,18 @@ public struct DownloadRecord: Codable, Sendable, Identifiable, Hashable {
 }
 
 extension DownloadCategory {
-    private enum CodingKeys: String, CodingKey { case id, name, order, acceptedFileTypes, acceptedURLPatterns, categoryPath }
+    private enum CodingKeys: String, CodingKey { case id, name, order, acceptedFileTypes, acceptedURLPatterns, categoryPath, icon }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int64.self, forKey: .id); name = try c.decode(String.self, forKey: .name); order = try c.decodeIfPresent(Int.self, forKey: .order) ?? 0
         acceptedFileTypes = try c.decodeIfPresent([String].self, forKey: .acceptedFileTypes) ?? []
         acceptedURLPatterns = try c.decodeIfPresent([String].self, forKey: .acceptedURLPatterns) ?? []
         categoryPath = try c.decodeIfPresent(String.self, forKey: .categoryPath)
+        icon = try c.decodeIfPresent(String.self, forKey: .icon) ?? "folder"
     }
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id, forKey: .id); try c.encode(name, forKey: .name); try c.encode(order, forKey: .order); try c.encode(acceptedFileTypes, forKey: .acceptedFileTypes); try c.encode(acceptedURLPatterns, forKey: .acceptedURLPatterns); try c.encodeIfPresent(categoryPath, forKey: .categoryPath)
+        try c.encode(id, forKey: .id); try c.encode(name, forKey: .name); try c.encode(order, forKey: .order); try c.encode(acceptedFileTypes, forKey: .acceptedFileTypes); try c.encode(acceptedURLPatterns, forKey: .acceptedURLPatterns); try c.encodeIfPresent(categoryPath, forKey: .categoryPath); try c.encode(icon, forKey: .icon)
     }
 }
 

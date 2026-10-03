@@ -15,28 +15,56 @@ public struct HTTPClient: Sendable {
     public let userAgent: String
 
     public init(settings: AppSettings = AppSettings()) {
+        try? settings.dns.applyToDefaultPrivacyContext()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 60
         configuration.timeoutIntervalForResource = 24 * 60 * 60
         configuration.httpShouldSetCookies = true
         configuration.httpCookieStorage = .shared
-        if settings.proxy.isUsable {
-            var proxy: [AnyHashable: Any] = [
-                kCFNetworkProxiesHTTPEnable: 1,
-                kCFNetworkProxiesHTTPProxy: settings.proxy.host,
-                kCFNetworkProxiesHTTPPort: settings.proxy.port,
-                kCFNetworkProxiesHTTPSProxy: settings.proxy.host,
-                kCFNetworkProxiesHTTPSPort: settings.proxy.port
-            ]
+        switch settings.proxy.mode {
+        case .none:
+            configuration.connectionProxyDictionary = [:]
+        case .system:
+            configuration.connectionProxyDictionary = nil
+        case .manual where settings.proxy.isUsable:
+            var proxy: [AnyHashable: Any] = [:]
             if settings.proxy.scheme == .socks5 {
                 proxy[kCFNetworkProxiesSOCKSEnable] = 1
                 proxy[kCFNetworkProxiesSOCKSProxy] = settings.proxy.host
                 proxy[kCFNetworkProxiesSOCKSPort] = settings.proxy.port
+            } else {
+                proxy[kCFNetworkProxiesHTTPEnable] = 1
+                proxy[kCFNetworkProxiesHTTPProxy] = settings.proxy.host
+                proxy[kCFNetworkProxiesHTTPPort] = settings.proxy.port
+                proxy[kCFNetworkProxiesHTTPSEnable] = 1
+                proxy[kCFNetworkProxiesHTTPSProxy] = settings.proxy.host
+                proxy[kCFNetworkProxiesHTTPSPort] = settings.proxy.port
             }
+            let bypass = Self.proxyBypassHosts(settings.proxy.bypassList)
+            if !bypass.isEmpty { proxy[kCFNetworkProxiesExceptionsList] = bypass }
             configuration.connectionProxyDictionary = proxy
+        case .pac:
+            var proxy: [AnyHashable: Any] = [:]
+            if let url = ProxySettings.validPACURL(settings.proxy.pacURL) {
+                proxy[kCFNetworkProxiesProxyAutoConfigEnable] = 1
+                proxy[kCFNetworkProxiesProxyAutoConfigURLString] = url.absoluteString
+            }
+            let bypass = Self.proxyBypassHosts(settings.proxy.bypassList)
+            if !bypass.isEmpty { proxy[kCFNetworkProxiesExceptionsList] = bypass }
+            configuration.connectionProxyDictionary = proxy
+        case .manual:
+            // An incomplete manual proxy must not silently fall through to
+            // the user's system proxy.
+            configuration.connectionProxyDictionary = [:]
         }
         session = URLSession(configuration: configuration, delegate: TLSDelegate(allowInsecure: settings.tls.allowInsecureCertificates, proxyUsername: settings.proxy.username, proxyPassword: settings.proxy.password), delegateQueue: nil)
         userAgent = settings.userAgent.isEmpty ? "ABDownloadManager/1.0 (macOS)" : settings.userAgent
+    }
+
+    public static func proxyBypassHosts(_ value: String) -> [String] {
+        value.split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     public func request(

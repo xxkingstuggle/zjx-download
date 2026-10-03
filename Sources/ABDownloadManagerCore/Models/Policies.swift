@@ -25,6 +25,9 @@ public struct DownloadRequest: Codable, Sendable, Hashable {
     public var expectedChecksum: String?
     public var speedLimit: Int64
     public var enqueue: Bool
+    /// Explicit per-download connection count. `nil` inherits the matching
+    /// host override, then the global setting.
+    public var connectionCountOverride: Int?
 
     public init(
         source: DownloadSource,
@@ -37,7 +40,8 @@ public struct DownloadRequest: Codable, Sendable, Hashable {
         conflictPolicy: FileConflictPolicy = .rename,
         expectedChecksum: String? = nil,
         speedLimit: Int64 = 0,
-        enqueue: Bool = false
+        enqueue: Bool = false,
+        connectionCountOverride: Int? = nil
     ) {
         self.source = source
         self.folderPath = folderPath
@@ -50,6 +54,7 @@ public struct DownloadRequest: Codable, Sendable, Hashable {
         self.expectedChecksum = expectedChecksum
         self.speedLimit = max(0, speedLimit)
         self.enqueue = enqueue
+        self.connectionCountOverride = connectionCountOverride.map { min(max($0, 1), 64) }
     }
 }
 

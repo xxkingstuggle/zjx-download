@@ -114,7 +114,9 @@ public actor DownloadEngine {
     }
 
     public func stopAll() async {
-        for id in running.keys { controls[id] = .paused }
+        // Snapshot the keys because pause persists each task and may re-enter
+        // this actor while the running dictionary changes.
+        for id in Array(running.keys) { try? await pause(taskID: id) }
     }
 
     private func run(taskID: Int64) async {
@@ -124,7 +126,7 @@ public actor DownloadEngine {
             running.removeValue(forKey: taskID); controls.removeValue(forKey: taskID); samples.removeValue(forKey: taskID)
         }
         do {
-            guard let original = await store.task(id: taskID) else { throw DownloadEngineError.missingTask }
+            guard let original = try await store.taskForExecution(id: taskID) else { throw DownloadEngineError.missingTask }
             let settings = await settingsProvider()
             let client = HTTPClient(settings: settings)
             guard original.source.url.scheme?.lowercased() == "http" || original.source.url.scheme?.lowercased() == "https" else { throw DownloadEngineError.invalidURL }
@@ -139,8 +141,24 @@ public actor DownloadEngine {
             task.validator = info.validator
             task.totalSize = info.contentLength
             task.supportsRanges = info.supportsRanges
-            task.connectionCount = task.kind == .hls ? 1 : max(1, min(settings.threadCount, info.supportsRanges ? settings.threadCount : 1))
+            let preferredConnections = task.connectionCountOverride ?? settings.threadCount
+            let canSplit = settings.dynamicPartCreation && info.supportsRanges
+            task.connectionCount = task.kind == .hls ? 1 : max(1, min(preferredConnections, canSplit ? preferredConnections : 1))
             if let suggested = info.suggestedFilename, task.fileName == task.source.url.lastPathComponent { task.fileName = try FileUtilities.sanitizedFileName(suggested) }
+            if task.categoryID == nil, settings.useCategoryByDefault {
+                let state = await store.snapshot()
+                if let category = state.categories.sorted(by: { $0.order < $1.order }).first(where: { $0.matches(url: task.source.url, fileName: task.fileName) }) {
+                    task.categoryID = category.id
+                    // A task with no explicit folder starts in the global
+                    // default directory. Once the server reveals its filename,
+                    // move it to the matching category's default directory.
+                    if task.folderPath == settings.defaultDownloadFolder,
+                       let categoryFolder = category.defaultFolder,
+                       !categoryFolder.isEmpty {
+                        task.folderPath = categoryFolder
+                    }
+                }
+            }
             try await store.updateTask(task)
             let folder: URL
             if let bookmarkStore, await bookmarkStore.contains(path: task.folderPath) {
@@ -152,7 +170,7 @@ public actor DownloadEngine {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let finalURL = try FileUtilities.containedURL(folder: folder, fileName: task.fileName)
             if let total = info.contentLength, let available = FileUtilities.availableCapacity(at: folder), available < total - task.downloadedSize { throw DownloadEngineError.insufficientDiskSpace }
-            let target = finalURL.appendingPathExtension("abpart")
+            let target = folder.appendingPathComponent(PartFileNaming.incompleteFileName(task.fileName, appendOriginalExtension: task.appendExtensionToIncompleteDownloads))
             if task.kind == .hls || task.source.url.pathExtension.lowercased() == "m3u8" {
                 let result = try await HLSDownloader(client: client, source: task.source).download(to: target, beforeSegment: { [weak self] in
                     try await self?.waitUntilRunning(taskID: taskID)
@@ -188,6 +206,10 @@ public actor DownloadEngine {
                 task.actualChecksum = "\(checksum.algorithm):\(actual)"
                 guard checksum.matches(rawDigest: actual) else { throw DownloadEngineError.checksumMismatch(expected: expected, actual: actual) }
             }
+            if settings.useServerLastModifiedTime,
+               let modificationDate = HTTPDateParser.parse(task.validator.lastModified) {
+                try FileManager.default.setAttributes([.modificationDate: modificationDate], ofItemAtPath: resolved.path)
+            }
             task.status = .completed; task.completedAt = Date(); task.errorMessage = nil
             try await store.updateTask(task); try await store.appendHistory(for: task)
             publish(taskID: task.id, downloaded: task.downloadedSize, total: task.totalSize, speed: 0)
@@ -213,7 +235,7 @@ public actor DownloadEngine {
     private func downloadPart(taskID: Int64, part: DownloadPart, client: HTTPClient, settings: AppSettings) async throws {
         guard let task = await store.task(id: taskID) else { throw DownloadEngineError.missingTask }
         let folder = URL(fileURLWithPath: task.folderPath, isDirectory: true)
-        let path = folder.appendingPathComponent(".\(task.fileName).abpart.\(part.id.uuidString)")
+        let path = folder.appendingPathComponent(PartFileNaming.partFileName(task.fileName, id: part.id, appendOriginalExtension: task.appendExtensionToIncompleteDownloads))
         if !FileManager.default.fileExists(atPath: path.path) { FileManager.default.createFile(atPath: path.path, contents: nil) }
         let handle = try FileHandle(forWritingTo: path); defer { try? handle.close() }
         var part = part
@@ -353,7 +375,7 @@ public actor DownloadEngine {
         } else {
             let folder = URL(fileURLWithPath: task.folderPath, isDirectory: true)
             for part in task.parts.sorted(by: { $0.from < $1.from }) {
-                let partURL = folder.appendingPathComponent(".\(task.fileName).abpart.\(part.id.uuidString)")
+                let partURL = folder.appendingPathComponent(PartFileNaming.partFileName(task.fileName, id: part.id, appendOriginalExtension: task.appendExtensionToIncompleteDownloads))
                 let input = try FileHandle(forReadingFrom: partURL); defer { try? input.close() }
                 while let data = try input.read(upToCount: 1_048_576), !data.isEmpty { try output.write(contentsOf: data) }
                 try? FileManager.default.removeItem(at: partURL)
@@ -365,14 +387,25 @@ public actor DownloadEngine {
 
     private func cleanupPartialFiles(_ task: DownloadTask) {
         let folder = URL(fileURLWithPath: task.folderPath)
-        try? FileManager.default.removeItem(at: folder.appendingPathComponent("\(task.fileName).abpart"))
-        try? FileManager.default.removeItem(at: folder.appendingPathComponent("\(task.fileName).abpart.hls.json"))
-        for part in task.parts { try? FileManager.default.removeItem(at: folder.appendingPathComponent(".\(task.fileName).abpart.\(part.id.uuidString)")) }
+        let incompleteName = PartFileNaming.incompleteFileName(task.fileName, appendOriginalExtension: task.appendExtensionToIncompleteDownloads)
+        try? FileManager.default.removeItem(at: folder.appendingPathComponent(incompleteName))
+        try? FileManager.default.removeItem(at: folder.appendingPathComponent(incompleteName).appendingPathExtension("hls.json"))
+        for part in task.parts { try? FileManager.default.removeItem(at: folder.appendingPathComponent(PartFileNaming.partFileName(task.fileName, id: part.id, appendOriginalExtension: task.appendExtensionToIncompleteDownloads))) }
     }
 
     private func markFailure(taskID: Int64, error: Error) async {
         guard var task = await store.task(id: taskID) else { return }
-        if case DownloadEngineError.cancelled = error { task.status = .cancelled } else if controls[taskID] == .paused { task.status = .paused } else { task.status = .failed }
+        // URLSession commonly reports an in-flight cancellation as
+        // URLError.cancelled (or another transport cancellation error), not
+        // DownloadEngineError.cancelled. The control state is the authority
+        // for an explicit user cancel and must win over the transport error.
+        if controls[taskID] == .cancelled || (error as? DownloadEngineError) == .cancelled {
+            task.status = .cancelled
+        } else if controls[taskID] == .paused {
+            task.status = .paused
+        } else {
+            task.status = .failed
+        }
         task.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         task.completedAt = task.status == .cancelled ? Date() : nil
         try? await store.updateTask(task)

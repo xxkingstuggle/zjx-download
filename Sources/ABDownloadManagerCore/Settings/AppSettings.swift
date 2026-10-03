@@ -68,6 +68,7 @@ public struct ProxySettings: Codable, Sendable, Hashable {
         case none
         case system
         case manual
+        case pac
         public var id: String { rawValue }
     }
 
@@ -86,6 +87,8 @@ public struct ProxySettings: Codable, Sendable, Hashable {
     public var password: String
     /// Hosts that bypass the proxy, comma separated, as entered by the user.
     public var bypassList: String
+    /// HTTPS or HTTP PAC script used when `mode == .pac`.
+    public var pacURL: String
 
     public init(
         mode: Mode = .system,
@@ -94,7 +97,8 @@ public struct ProxySettings: Codable, Sendable, Hashable {
         port: Int = 0,
         username: String = "",
         password: String = "",
-        bypassList: String = ""
+        bypassList: String = "",
+        pacURL: String = ""
     ) {
         self.mode = mode
         self.scheme = scheme
@@ -103,10 +107,22 @@ public struct ProxySettings: Codable, Sendable, Hashable {
         self.username = username
         self.password = password
         self.bypassList = bypassList
+        self.pacURL = pacURL
     }
 
     public var isUsable: Bool {
-        mode == .manual && !host.isEmpty && port > 0
+        switch mode {
+        case .manual: !host.isEmpty && port > 0
+        case .pac: Self.validPACURL(pacURL) != nil
+        case .none, .system: true
+        }
+    }
+
+    public static func validPACURL(_ value: String) -> URL? {
+        guard let url = URL(string: value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              url.host != nil else { return nil }
+        return url
     }
 
     /// Credentials are only used for a proxy authentication challenge; this
@@ -114,6 +130,36 @@ public struct ProxySettings: Codable, Sendable, Hashable {
     public var proxyAuthorizationHeader: String? {
         guard !username.isEmpty else { return nil }
         return "Basic " + Data("\(username):\(password)".utf8).base64EncodedString()
+    }
+}
+
+extension ProxySettings {
+    private enum CodingKeys: String, CodingKey { case mode, scheme, host, port, username, password, bypassList, pacURL }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            mode: try c.decodeIfPresent(Mode.self, forKey: .mode) ?? .system,
+            scheme: try c.decodeIfPresent(Scheme.self, forKey: .scheme) ?? .http,
+            host: try c.decodeIfPresent(String.self, forKey: .host) ?? "",
+            port: try c.decodeIfPresent(Int.self, forKey: .port) ?? 0,
+            username: try c.decodeIfPresent(String.self, forKey: .username) ?? "",
+            password: try c.decodeIfPresent(String.self, forKey: .password) ?? "",
+            bypassList: try c.decodeIfPresent(String.self, forKey: .bypassList) ?? "",
+            pacURL: try c.decodeIfPresent(String.self, forKey: .pacURL) ?? ""
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(mode, forKey: .mode)
+        try c.encode(scheme, forKey: .scheme)
+        try c.encode(host, forKey: .host)
+        try c.encode(port, forKey: .port)
+        try c.encode(username, forKey: .username)
+        try c.encode(password, forKey: .password)
+        try c.encode(bypassList, forKey: .bypassList)
+        try c.encode(pacURL, forKey: .pacURL)
     }
 }
 
@@ -230,10 +276,13 @@ public struct AppSettings: Codable, Sendable, Equatable {
     public var notifications: NotificationSettings
     public var integration: IntegrationSettings
     public var proxy: ProxySettings
+    public var dns: DNSSettings
     public var tls: TLSSettings
 
     // Updates — disabled by default for safety on a fork (see UpdaterService).
     public var updateChannel: UpdateChannel
+    /// Explicit HTTPS manifest owned by the publisher of this macOS build.
+    public var updateManifestURL: String
     public var lastUpdateCheck: Date?
 
     // Persistence metadata (not part of the original settings).
@@ -265,8 +314,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
         notifications: NotificationSettings = NotificationSettings(),
         integration: IntegrationSettings = IntegrationSettings(),
         proxy: ProxySettings = ProxySettings(),
+        dns: DNSSettings = DNSSettings(),
         tls: TLSSettings = TLSSettings(),
         updateChannel: UpdateChannel = .disabled,
+        updateManifestURL: String = "",
         lastUpdateCheck: Date? = nil,
         settingsVersion: Int = AppSettings.currentVersion
     ) {
@@ -295,8 +346,10 @@ public struct AppSettings: Codable, Sendable, Equatable {
         self.notifications = notifications
         self.integration = integration
         self.proxy = proxy
+        self.dns = dns
         self.tls = tls
         self.updateChannel = updateChannel
+        self.updateManifestURL = updateManifestURL
         self.lastUpdateCheck = lastUpdateCheck
         self.settingsVersion = settingsVersion
     }
@@ -306,6 +359,15 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// `~/Downloads/ABDM`, matching the original's
     /// `PlatformDownloadLocationProvider.getDownloadLocation().resolve("ABDM")`.
     public static var defaultDownloadFolderPath: String {
+        downloadFolderPath(environment: ProcessInfo.processInfo.environment)
+    }
+
+    /// Allows an explicitly isolated app run to redirect every default download
+    /// path without consulting or writing the user's normal Downloads folder.
+    public static func downloadFolderPath(environment: [String: String]) -> String {
+        if let override = environment["ABDM_DOWNLOAD_DIRECTORY"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true).standardizedFileURL.path
+        }
         let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
         return downloads.appendingPathComponent("ABDM").path
@@ -314,6 +376,9 @@ public struct AppSettings: Codable, Sendable, Equatable {
     /// Clamps values into their legal ranges. Applied after every mutation so
     /// the engine never observes a nonsensical configuration.
     public mutating func normalize() {
+        if let language, !SupportedAppLanguage.all.contains(where: { $0.code == language }) {
+            self.language = SupportedAppLanguage.defaultCode
+        }
         threadCount = min(max(threadCount, 1), 64)
         maxConcurrentDownloads = min(max(maxConcurrentDownloads, 1), 64)
         maxDownloadRetryCount = min(max(maxDownloadRetryCount, 0), 100)
@@ -332,7 +397,7 @@ extension AppSettings {
         case theme, language, uiScale, showIconLabels, useRelativeDateTime, clipboardMonitoring
         case threadCount, maxConcurrentDownloads, maxDownloadRetryCount, dynamicPartCreation, useServerLastModifiedTime, appendExtensionToIncompleteDownloads, useAverageSpeed, speedLimit, useCategoryByDefault, userAgent
         case defaultDownloadFolder, trackDeletedFilesOnDisk, deletePartialFileOnDownloadCancellation
-        case sizeUnit, speedUnit, autoStartOnBoot, notifications, integration, proxy, tls, updateChannel, lastUpdateCheck, settingsVersion
+        case sizeUnit, speedUnit, autoStartOnBoot, notifications, integration, proxy, dns, tls, updateChannel, updateManifestURL, lastUpdateCheck, settingsVersion
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -359,8 +424,12 @@ extension AppSettings {
         autoStartOnBoot = try c.decodeIfPresent(Bool.self, forKey: .autoStartOnBoot) ?? defaults.autoStartOnBoot
         notifications = try c.decodeIfPresent(NotificationSettings.self, forKey: .notifications) ?? defaults.notifications
         integration = try c.decodeIfPresent(IntegrationSettings.self, forKey: .integration) ?? defaults.integration
-        proxy = try c.decodeIfPresent(ProxySettings.self, forKey: .proxy) ?? defaults.proxy; tls = try c.decodeIfPresent(TLSSettings.self, forKey: .tls) ?? defaults.tls
-        updateChannel = try c.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? defaults.updateChannel; lastUpdateCheck = try c.decodeIfPresent(Date.self, forKey: .lastUpdateCheck)
+        proxy = try c.decodeIfPresent(ProxySettings.self, forKey: .proxy) ?? defaults.proxy
+        dns = try c.decodeIfPresent(DNSSettings.self, forKey: .dns) ?? defaults.dns
+        tls = try c.decodeIfPresent(TLSSettings.self, forKey: .tls) ?? defaults.tls
+        updateChannel = try c.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? defaults.updateChannel
+        updateManifestURL = try c.decodeIfPresent(String.self, forKey: .updateManifestURL) ?? defaults.updateManifestURL
+        lastUpdateCheck = try c.decodeIfPresent(Date.self, forKey: .lastUpdateCheck)
         settingsVersion = try c.decodeIfPresent(Int.self, forKey: .settingsVersion) ?? defaults.settingsVersion
     }
 }

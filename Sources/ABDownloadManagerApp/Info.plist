@@ -5,7 +5,8 @@
 <key>CFBundleDisplayName</key><string>zjx-download</string>
 <key>CFBundleName</key><string>zjx-download</string>
 <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
-<key>CFBundleIdentifier</key><string>com.zjx.download</string>
+<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>ABDMRequiresIsolation</key><string>$(ABDM_REQUIRES_ISOLATION)</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundleShortVersionString</key><string>1.0.0</string>
 <key>CFBundlePackageType</key><string>APPL</string>

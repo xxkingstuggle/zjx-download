@@ -16,13 +16,30 @@ security-scoped bookmarks instead of the former Kotlin/Compose/Gradle stack.
   segment sidecars.
 - Queues with CRUD, ordering, priority, concurrency limits, weekday schedules
   (including overnight windows), history, and global/task speed limits.
-- SwiftUI `NavigationSplitView` window, inspector, batch-add sheet, settings,
-  keyboard commands, menu bar extra, clipboard monitoring, notifications, and
-  accessibility-aware macOS 26 Liquid Glass.
+- SwiftUI `NavigationSplitView` app shell with a virtualized AppKit
+  `NSTableView`, inspector, batch-add sheet, settings, keyboard commands, menu
+  bar extra, clipboard monitoring, notifications, and macOS 26 styling.
 - Loopback REST compatibility at `127.0.0.1:15151`: `POST /add`, `GET
   /queues`, `POST /start-headless-download`, and `POST /ping`. Send `X-Api-Key`
   when API authentication is enabled. The service accepts both the legacy
   array body and the newer object/envelope form.
+
+## Chrome companion
+
+The branded Chrome extension source and its local build instructions are in
+[`browser-extension/README.md`](browser-extension/README.md). To validate or
+build the Chrome package:
+
+```sh
+cd browser-extension
+npm ci
+npm test
+npm run build:chrome
+```
+
+The unpacked extension is written to `browser-extension/dist/chrome`. The
+extension uses the app's loopback REST API; Chrome is not installed or changed
+by the app build.
 
 ## Build and test
 
@@ -70,7 +87,9 @@ channel is disabled and the update policy requires HTTPS and a verified SHA-256
 before a host application may offer an artifact. Partial files remain until a
 successful atomic merge unless the cancellation setting requests deletion.
 
-The complete source audit and feature matrix is in
+The current implementation status and remaining verification are in the
+[feature matrix](docs/native-completeness-audit/feature-matrix.md). The earlier
+rewrite plan remains available at
 [`docs/macos-native-rewrite-plan.md`](docs/macos-native-rewrite-plan.md).
 
 ## License
