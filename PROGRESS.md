@@ -1,5 +1,7 @@
 # 当前交付进度
 
+Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx-download`，默认正式分支 `main`。2026-10-19用户澄清不能只交工作分支；下方早期“只同步任务分支、不改main”为当时处理记录，由本次指令更新。
+
 更新：2026-10-18 19:42（Asia/Shanghai）。当前安装 **2.0.1/build20261018.2**。5个Luna已全部交付，主代理已审核接缝、修正编译问题，完成干净路径 Release Universal App、双架构CLI和Chrome构建、签名与安装。未启动App/Chrome，功能与性能仍全部待用户测试。
 
 ## 本轮修复交付（2026-10-18）
@@ -131,3 +133,11 @@
 - 机器治理只读检查通过，安装登记已核对；未改全局规则、PATH或服务。工作树/远端最终状态以最新Git检查为准。
 - 保留：本次scratch约480MiB（构建日志、签名ZIP解压核对、中间编译）；发布目录约23MiB（交付产物）；.agent-work约137MiB（继承与当前诊断）；继承CLI构建缓存约103/110MiB。均不入Git，未经清场确认不删除。旧源码/旧App归档保留用于恢复。
 - 用户数据未操作，功能/性能验收仍全待用户测试；没有因提交运行功能测试或重新安装App。
+
+## 2026-10-19 独立仓库与默认主线更正
+
+- 核对GitHub：仓库归属xxkingstuggle，isFork=false、parent=null、private=true；仓库本身独立，问题是此前默认main仍为旧代码，而新实现仅在工作分支。
+- 用户明确要求作为自己的独立项目交付；将本次完整实现接入origin/main，本地也切到main；README和AGENTS以正式主线为准。
+- 原main提交afc57634b3c121c6415213242b2b600cccc6fd6e是本次实现的祖先；使用fast-forward保留完整历史，未重置、force push或删除旧分支。原源码/旧App归档不变。
+- main包含源码提交177bdd9a及治理提交9c6b54a2；当前提交仅更正规则、仓库入口和交付记录，App源码与构建产物未变，不重新启动或安装App，不触碰用户数据。
+- 最终核对：GitHub仓库默认分支main应指向本地HEAD；本地origin/HEAD同步main。实际推送结果以GitHub与ls-remote核对为准。
