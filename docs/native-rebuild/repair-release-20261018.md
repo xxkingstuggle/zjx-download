@@ -30,7 +30,7 @@
 
 ## 路径与恢复
 
-- 正式源码：/Users/zjx/Developer/repos/zjx-download；分支zjx/clean-room-native-rebuild；HEAD仍0f1245261f429bd6378b43603b2a6f45eb263ef3。继承改动保留，未提交/推送。
+- 正式源码：/Users/zjx/Developer/repos/zjx-download；分支zjx/clean-room-native-rebuild；构建前基线0f1245261f429bd6378b43603b2a6f45eb263ef3；完整源码已提交177bdd9a69005eba9fbbcc800969e719750ca666并推送origin同名任务分支（2026-10-19用户授权），最新文档补充见Git记录。
 - 发布目录：/Users/zjx/Developer/releases/zjx-download/2.0.1-repair-20261018/。
 - 新App：该目录zjx-download.app及zjx-download-macos-2.0.1.zip；CLI在bin/zjx-download-cli，未改全局PATH。
 - Chrome：browser-extension/dist/chrome/及zjx-download-chrome-2.0.1.zip。用户在chrome://extensions重新加载此目录；两端均应显示2.0.1，App build20261018.2。

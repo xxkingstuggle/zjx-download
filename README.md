@@ -12,6 +12,8 @@
 - Data remains under `~/Library/Application Support/zjx-download/`. Legacy `ABDownloadManager/state.json` is available for preview and explicit import, preserving the source. No data migration was performed during this update.
 - Current boundaries and acceptance status: [BLOCKED.md](BLOCKED.md).
 
+Source branch: [`zjx/clean-room-native-rebuild`](https://github.com/xxkingstuggle/zjx-download/tree/zjx/clean-room-native-rebuild). Project workflow and data boundaries: [AGENTS.md](AGENTS.md).
+
 ## Build
 
 Requires Xcode with the macOS 26 SDK, Swift 6.2+, Node.js, and npm.
