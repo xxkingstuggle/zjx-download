@@ -1,0 +1,56 @@
+#!/bin/zsh
+set -euo pipefail
+
+host_id='com.zjx.download'
+extension_id='ikfafcgjoghicpkoolbofdaoonendhak'
+bundle_host='/Applications/zjx-download.app/Contents/Helpers/zjx-download-native-host'
+manifest_dir="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+manifest_path="$manifest_dir/$host_id.json"
+backup_path="$manifest_path.pre-zjx-$(date +%Y%m%d-%H%M%S)"
+
+case "${1:-}" in
+  install)
+    if [[ ! -x "$bundle_host" ]]; then
+      print -u2 "Native Messaging host is missing or not executable: $bundle_host"
+      exit 1
+    fi
+    mkdir -p "$manifest_dir"
+    if [[ -e "$manifest_path" ]]; then
+      if /usr/bin/python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); sys.exit(0 if x.get("name")==sys.argv[2] and x.get("path")==sys.argv[3] and x.get("allowed_origins")==[sys.argv[4]] and x.get("type")=="stdio" else 1)' "$manifest_path" "$host_id" "$bundle_host" "chrome-extension://$extension_id/"; then
+        print "Native Messaging host already points to this app and extension."
+        exit 0
+      fi
+      cp -p "$manifest_path" "$backup_path"
+      print "Existing project-name registration preserved at: $backup_path"
+    fi
+    manifest_tmp="$manifest_path.tmp.$$"
+    cat > "$manifest_tmp" <<JSON
+{
+  "name": "$host_id",
+  "description": "zjx-download Chrome Native Messaging host",
+  "path": "$bundle_host",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://$extension_id/"]
+}
+JSON
+    /usr/bin/python3 -m json.tool "$manifest_tmp" >/dev/null
+    chmod 600 "$manifest_tmp"
+    mv -f "$manifest_tmp" "$manifest_path"
+    print "Installed project-specific Native Messaging registration: $manifest_path"
+    print "Chrome extension ID: $extension_id"
+    ;;
+  uninstall)
+    if [[ ! -e "$manifest_path" ]]; then print "No project host registration found."; exit 0; fi
+    if ! /usr/bin/python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); sys.exit(0 if x.get("name")==sys.argv[2] and x.get("allowed_origins")==[sys.argv[3]] else 1)' "$manifest_path" "$host_id" "chrome-extension://$extension_id/"; then
+      print -u2 "The host manifest does not match this extension; it was left unchanged."
+      exit 1
+    fi
+    disabled="$manifest_path.disabled-$(date +%Y%m%d-%H%M%S)"
+    mv "$manifest_path" "$disabled"
+    print "Registration disabled and preserved at: $disabled"
+    ;;
+  *)
+    print -u2 "Usage: $0 install|uninstall"
+    exit 2
+    ;;
+esac

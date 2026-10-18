@@ -1,5 +1,7 @@
 # Swift Package Manager and Xcode output
 .build/
+.build-cli-arm64/
+.build-cli-x86_64/
 DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
@@ -23,3 +25,13 @@ output/
 docs/native-completeness-audit/evidence/
 docs/native-completeness-audit/scripts/
 docs/native-completeness-audit/*taskbook*.md
+
+# Credentials and release artifacts must stay outside source history
+.env
+.env.*
+*.pem
+*.p8
+*.pfx
+*.jks
+/release/
+/releases/

@@ -1,0 +1,81 @@
+{
+  "version": "0.2",
+  "date": "2026-10-18",
+  "source_inventory_date": "2026-10-17",
+  "scope": [
+    "macOS",
+    "Chrome"
+  ],
+  "implementation_goal": "independent_native_reimplementation",
+  "reference_policy": "old_source_and_audits_allowed",
+  "proposal_status": "author_candidates_not_user_approved",
+  "requirement_groups": 80,
+  "counts": {
+    "G": 17,
+    "D": 26,
+    "N": 11,
+    "Q": 4,
+    "I": 3,
+    "B": 19
+  },
+  "acceptance_scenarios": 50,
+  "implementation_status": "not_started",
+  "runtime_validation": "not_performed",
+  "files": [
+    {
+      "name": "README.md",
+      "bytes": 2119,
+      "sha256": "8cdb471e95731bf6a58227795cab20c0b966b80d4f2eb458841eaa7e8b1f758a"
+    },
+    {
+      "name": "01-native-rebuild-direction.md",
+      "bytes": 7360,
+      "sha256": "ca631a0b60809119eea70a230b1cb652e5aa50c04381855339f78136e55a1c20"
+    },
+    {
+      "name": "02-reverse-analysis-to-native.md",
+      "bytes": 6632,
+      "sha256": "67036aa4bae6573b27cc6ee40ae38f39e17701d20447a56c10e380cd5287b771"
+    },
+    {
+      "name": "00-scope-and-rules.md",
+      "bytes": 14368,
+      "sha256": "8e819860156fd623f729746e4e8519d158b966e715da76e57f131602e2b1f1dc"
+    },
+    {
+      "name": "10-desktop-functional-spec.md",
+      "bytes": 54858,
+      "sha256": "c61a94e02ff78c97ff490d97fb047ad020303eb27b387b6f36721b6c973f5609"
+    },
+    {
+      "name": "20-download-queue-network-spec.md",
+      "bytes": 49624,
+      "sha256": "0844a645129ef412eb5ea7c804234e3e6bc999b0a5482eb5f967d964bdc48dca"
+    },
+    {
+      "name": "30-browser-integration-spec.md",
+      "bytes": 31406,
+      "sha256": "0e3d7b75197e638726a0160ad403acb9cf7039957bc2a46e09345afb2b2e632c"
+    },
+    {
+      "name": "40-end-to-end-acceptance.md",
+      "bytes": 12608,
+      "sha256": "a5b9f4936668aa6df22f23950c1301d8718e1379a67ec7bda061bd37a81f95f0"
+    },
+    {
+      "name": "50-freeze-and-validation.md",
+      "bytes": 8690,
+      "sha256": "b58d9ecd69472de6dc9306fc5f5a469921f66c74f61eb30909344436b76b5333"
+    },
+    {
+      "name": "60-function-index.md",
+      "bytes": 10555,
+      "sha256": "84c4c805432ee636f0d9960250eb4fb14ef2120684dadc46d646b2eaee617b35"
+    },
+    {
+      "name": "AB下载器-净室重建功能规格-合订本.md",
+      "bytes": 194703,
+      "sha256": "3a8e277fa780bc46b04c6f556b4c10349ff7735d7fe3f4c3be9848acadc21e1f"
+    }
+  ]
+}

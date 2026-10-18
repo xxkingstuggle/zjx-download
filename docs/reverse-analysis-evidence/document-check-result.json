@@ -1,0 +1,28 @@
+{
+  "requirement_groups": 80,
+  "counts": {
+    "G": 17,
+    "D": 26,
+    "N": 11,
+    "Q": 4,
+    "I": 3,
+    "B": 19
+  },
+  "acceptance_scenarios": 50,
+  "freeze_records": 15,
+  "referenced_evidence_ids": 108,
+  "verified_source_link_locations": 402,
+  "source_files_checked": 195,
+  "book_characters": 81326,
+  "problems": {
+    "duplicate_requirement_ids": [],
+    "undefined_requirement_refs": [],
+    "missing_evidence_ids": [],
+    "forbidden_implementation_material": [],
+    "missing_local_links": [],
+    "bad_source_locations": [],
+    "unverified_browser_source_locations": [],
+    "table_column_issues": [],
+    "duplicate_book_anchors": []
+  }
+}

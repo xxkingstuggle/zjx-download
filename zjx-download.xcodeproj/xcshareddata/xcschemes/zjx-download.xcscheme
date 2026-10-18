@@ -1,20 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme LastUpgradeVersion="2650" version="1.7">
-  <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
-    <BuildActionEntries>
-      <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000302" BuildableName="zjx-download.app" BlueprintName="zjx-download" ReferencedContainer="container:zjx-download.xcodeproj"/>
-      </BuildActionEntry>
-    </BuildActionEntries>
-  </BuildAction>
-  <TestAction buildConfiguration="Debug" shouldUseLaunchSchemeArgsEnv="YES">
-    <Testables>
-      <TestableReference skipped="NO">
-        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A00000000000000000000303" BuildableName="ABDownloadManagerTests.xctest" BlueprintName="ABDownloadManagerTests" ReferencedContainer="container:zjx-download.xcodeproj"/>
-      </TestableReference>
-    </Testables>
-  </TestAction>
-  <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB"/>
+  <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES"><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="93A04D17184A52D0BE4C07B0" BuildableName="zjx-download.app" BlueprintName="zjx-download" ReferencedContainer="container:zjx-download.xcodeproj"/></BuildActionEntry></BuildActionEntries></BuildAction>
+  <TestAction buildConfiguration="Debug" shouldUseLaunchSchemeArgsEnv="YES"/>
+  <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB"/>
   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES"/>
   <AnalyzeAction buildConfiguration="Debug"/>
   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>

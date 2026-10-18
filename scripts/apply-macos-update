@@ -1,0 +1,118 @@
+#!/bin/zsh
+set -euo pipefail
+
+archive=${1:?archive path required}
+app_path=${2:?application path required}
+expected_version=${3:?version required}
+expected_team=${4:?team identifier required}
+parent_pid=${5:?parent PID required}
+log_dir="$HOME/Library/Logs/zjx-download"
+/bin/mkdir -p "$log_dir"
+exec >>"$log_dir/update.log" 2>&1
+print "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ') updater started"
+
+if [[ "$app_path" != "/Applications/zjx-download.app" || ! -f "$archive" ]]; then
+  print -u2 "拒绝更新：路径或更新包无效。"
+  exit 2
+fi
+if [[ ${#expected_team} != 10 || "$expected_team" == *[^A-Z0-9]* ]]; then
+  print -u2 "拒绝更新：清单没有有效的签名团队标识。"
+  exit 2
+fi
+/usr/bin/codesign --verify --deep --strict "$app_path"
+installed_signature=$(/usr/bin/codesign -dv --verbose=4 "$app_path" 2>&1)
+installed_team=$(print -r -- "$installed_signature" | /usr/bin/sed -n 's/^TeamIdentifier=//p' | /usr/bin/head -n 1)
+installed_bundle=$(/usr/bin/defaults read "$app_path/Contents/Info" CFBundleIdentifier)
+if [[ "$installed_bundle" != "com.zjx.download" || "$installed_team" != "$expected_team" ]]; then
+  print -u2 "拒绝更新：更新团队与当前 App 的签名身份不一致。"
+  exit 2
+fi
+
+parent_dir=${app_path:h}
+if [[ ! -w "$parent_dir" ]]; then
+  print -u2 "拒绝更新：/Applications 当前不可写。"
+  exit 2
+fi
+
+stage=$(/usr/bin/mktemp -d "$parent_dir/.zjx-download-update.XXXXXXXX")
+if [[ "$stage" != "$parent_dir"/.zjx-download-update.* || ! -d "$stage" ]]; then
+  print -u2 "拒绝更新：无法创建隔离暂存目录。"
+  exit 2
+fi
+old_app=""
+rollback() {
+  update_exit_code=$?
+  if (( update_exit_code != 0 )) && [[ -n "$old_app" && -d "$old_app" && ! -e "$app_path" ]]; then
+    /bin/mv "$old_app" "$app_path" || true
+  fi
+  exit "$update_exit_code"
+}
+trap rollback EXIT
+
+/usr/bin/ditto -x -k "$archive" "$stage"
+candidate=$(/usr/bin/find "$stage" -maxdepth 5 -type d -name 'zjx-download.app' -print -quit)
+if [[ -z "$candidate" || "$candidate" != "$stage"/* ]]; then
+  print -u2 "更新包中没有 zjx-download.app。"
+  exit 3
+fi
+
+bundle_id=$(/usr/bin/defaults read "$candidate/Contents/Info" CFBundleIdentifier)
+version=$(/usr/bin/defaults read "$candidate/Contents/Info" CFBundleShortVersionString)
+icon_name=$(/usr/bin/defaults read "$candidate/Contents/Info" CFBundleIconName 2>/dev/null || /usr/bin/defaults read "$candidate/Contents/Info" CFBundleIconFile 2>/dev/null || true)
+if [[ "$bundle_id" != "com.zjx.download" || "$version" != "$expected_version" || "$icon_name" != "AppIcon" ]]; then
+  print -u2 "更新包的产品身份、版本或图标资源不匹配。"
+  exit 4
+fi
+/usr/bin/codesign --verify --deep --strict "$candidate"
+signature=$(/usr/bin/codesign -dv --verbose=4 "$candidate" 2>&1)
+team=$(print -r -- "$signature" | /usr/bin/sed -n 's/^TeamIdentifier=//p' | /usr/bin/head -n 1)
+if [[ "$team" != "$expected_team" ]]; then
+  print -u2 "更新包签名团队与 HTTPS 清单不匹配。"
+  exit 5
+fi
+if ! /usr/bin/cmp -s "$app_path/Contents/Resources/AppIcon.icns" "$candidate/Contents/Resources/AppIcon.icns"; then
+  print -u2 "更新包图标与当前 App 不一致，未替换。"
+  exit 5
+fi
+
+binary="$candidate/Contents/MacOS/zjx-download"
+[[ -x "$binary" ]] || { print -u2 "更新包缺少主程序。"; exit 6; }
+architectures=$(/usr/bin/lipo -archs "$binary")
+host_arch=$(/usr/bin/uname -m)
+case " $architectures " in
+  *" $host_arch "*) ;;
+  *) print -u2 "更新包不支持当前架构 $host_arch。"; exit 7 ;;
+esac
+
+if [[ "$parent_pid" == *[^0-9]* || -z "$parent_pid" ]]; then
+  print -u2 "拒绝更新：父进程标识无效。"
+  exit 8
+fi
+for _ in {1..1200}; do
+  if ! /bin/kill -0 "$parent_pid" 2>/dev/null; then break; fi
+  /bin/sleep 0.25
+done
+if /bin/kill -0 "$parent_pid" 2>/dev/null; then
+  print -u2 "旧版 App 未退出，未替换安装。"
+  exit 9
+fi
+
+stamp=$(/bin/date -u '+%Y%m%dT%H%M%SZ')
+old_app="$parent_dir/zjx-download.app.rollback-$stamp"
+if [[ -e "$old_app" ]]; then
+  print -u2 "回滚目录已存在，未替换安装。"
+  exit 10
+fi
+/bin/mv "$app_path" "$old_app"
+if ! /bin/mv "$candidate" "$app_path"; then
+  /bin/mv "$old_app" "$app_path"
+  old_app=""
+  print -u2 "安装替换失败，已还原旧版 App。"
+  exit 11
+fi
+old_app=""
+if [[ "$stage" == "$parent_dir"/.zjx-download-update.* ]]; then /bin/rm -rf "$stage"; fi
+/usr/bin/open "$app_path"
+print "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ') update installed and launched"
+trap - EXIT
+exit 0

@@ -1,0 +1,11 @@
+{
+  "direction_version": "0.2",
+  "date": "2026-10-18",
+  "requirement_groups": 80,
+  "acceptance_scenarios": 50,
+  "reference_access": "allowed",
+  "document_issues": [],
+  "application_code_changed": false,
+  "runtime_tests_run": false,
+  "source_location_check": "unchanged 2026-10-17 snapshot; not repeated"
+}

@@ -4,201 +4,133 @@
  objectVersion = 77;
  objects = {
 /* Begin PBXBuildFile section */
-B000000000000000000010 /* SpeedLimiter.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000010; };
-B000000000000000000011 /* BatchURLPattern.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000011; };
-B000000000000000000012 /* Classification.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000012; };
-B000000000000000000013 /* TaskSelection.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000013; };
-B000000000000000000066 /* ChecksumToolView.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000066; };
-B000000000000000000000 /* DownloadEngine.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000000; };
-B000000000000000000001 /* HLSDownloader.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000001; };
-B000000000000000000002 /* HTTPClient.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000002; };
-B000000000000000000003 /* QueueScheduler.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000003; };
-B000000000000000000004 /* Checksum.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000004; };
-B000000000000000000005 /* DownloadPart.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000005; };
-B000000000000000000006 /* DownloadTask.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000006; };
-B000000000000000000007 /* Policies.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000007; };
-B000000000000000000008 /* Queue.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000008; };
-B000000000000000000009 /* ResourceInfo.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000009; };
-B00000000000000000000A /* AppStateStore.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000A; };
-B00000000000000000000B /* FolderBookmarkStore.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000B; };
-B00000000000000000000C /* RESTService.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000C; };
-B00000000000000000000D /* SecureUpdatePolicy.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000D; };
-B00000000000000000000E /* AppSettings.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000E; };
-B00000000000000000000F /* FileUtilities.swift */ = {isa = PBXBuildFile; fileRef = A00000000000000000000F; };
-B000000000000000000064 /* ABDownloadManagerApp.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000064; };
-B000000000000000000065 /* ClipboardMonitor.swift */ = {isa = PBXBuildFile; fileRef = A000000000000000000065; };
-B0000000000000000000C8 /* IntegrationTests.swift */ = {isa = PBXBuildFile; fileRef = A0000000000000000000C8; };
-B0000000000000000000C9 /* LocalHTTPFixture.swift */ = {isa = PBXBuildFile; fileRef = A0000000000000000000C9; };
-B0000000000000000000CA /* ModelTests.swift */ = {isa = PBXBuildFile; fileRef = A0000000000000000000CA; };
-B0000000000000000000CB /* THIRD_PARTY_NOTICES.txt */ = {isa = PBXBuildFile; fileRef = F00000000000000000000002; };
-A00000000000000000000001 /* Core sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101; };
-A00000000000000000000002 /* App sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000102; };
-A00000000000000000000003 /* Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103; };
-A00000000000000000000004 /* Assets */ = {isa = PBXBuildFile; fileRef = A00000000000000000000104; };
-A00000000000000000000005 /* Test sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000108; };
-A00000000000000000000006 /* Core framework app */ = {isa = PBXBuildFile; fileRef = A00000000000000000000106; };
-A00000000000000000000007 /* Core framework test */ = {isa = PBXBuildFile; fileRef = A00000000000000000000106; };
-A00000000000000000000008 /* AppIntents */ = {isa = PBXBuildFile; fileRef = A00000000000000000000110; };
-A00000000000000000000009 /* Localizable.strings */ = {isa = PBXBuildFile; fileRef = A00000000000000000000120; };
-E00000000000000000000064 /* QueueCompletionActionRunner.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000064; };
-E00000000000000000000065 /* DefaultCategories.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000065; };
-E00000000000000000000066 /* DownloadInputParser.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000066; };
-E00000000000000000000067 /* HTTPDateParser.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000067; };
-E00000000000000000000068 /* KeychainCredentialStore.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000068; };
-E00000000000000000000069 /* DNSSettings.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000069; };
-E0000000000000000000006A /* SupportedLanguages.swift */ = {isa = PBXBuildFile; fileRef = D0000000000000000000006A; };
-E00000000000000000000072 /* SettingsDraft.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000072; };
-E00000000000000000000073 /* VerificationLaunchConfiguration.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000073; };
-E00000000000000000000075 /* HTTPHeaderEditingPolicy.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000075; };
-E00000000000000000000076 /* DownloadTaskListProjection.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000076; };
-E00000000000000000000077 /* NativeDownloadTaskTable.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000077; };
-E00000000000000000000078 /* RESTAddConfirmationQueue.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000078; };
-E0000000000000000000006B /* AppearanceTests.swift */ = {isa = PBXBuildFile; fileRef = D0000000000000000000006B; };
-E0000000000000000000006C /* KeychainPersistenceTests.swift */ = {isa = PBXBuildFile; fileRef = D0000000000000000000006C; };
-E0000000000000000000006D /* LocalizationTests.swift */ = {isa = PBXBuildFile; fileRef = D0000000000000000000006D; };
-E0000000000000000000006E /* NetworkSettingsTests.swift */ = {isa = PBXBuildFile; fileRef = D0000000000000000000006E; };
-E0000000000000000000006F /* QueueCompletionTests.swift */ = {isa = PBXBuildFile; fileRef = D0000000000000000000006F; };
-E00000000000000000000070 /* SecureUpdatePolicyTests.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000070; };
-E00000000000000000000071 /* SelectionTests.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000071; };
-E00000000000000000000074 /* IsolationTests.swift */ = {isa = PBXBuildFile; fileRef = D00000000000000000000074; };
+77962F72EE504B91898AF4A5 = {isa = PBXBuildFile; fileRef = EE0EB7F881614E06835CDE39; };
+190DCE3E3FE34A86AA07FE72 = {isa = PBXBuildFile; fileRef = DA0FA51E846B439CBBD84BF8; };
+3C4E2A7B9D704A51A86FE301 = {isa = PBXBuildFile; fileRef = A9E2BD0F14694C2198A72E33; };
+A4B2C3D4E5F60718293A4B5C = {isa = PBXBuildFile; fileRef = A3B2C3D4E5F60718293A4B5C; };
+A6B2C3D4E5F60718293A4B5C = {isa = PBXBuildFile; fileRef = 45EDBB98B3835C5B8F5A870D; };
+3954BD6B676451C59AE04E5A = {isa = PBXBuildFile; fileRef = 5D0E261DAFA552CC892955D5; };
+9BCF3F1CE26753C382D1E9D9 = {isa = PBXBuildFile; fileRef = 04609548142F5342AA5E4DD3; };
+B521B32A70E85D20803B0A02 = {isa = PBXBuildFile; fileRef = 497E126D7D30520AAC410992; };
+58CB5576D82F5DDE9393F30D = {isa = PBXBuildFile; fileRef = EB41FDDB7C45548B9E171F7F; };
+C40994BF789751AF8C3D80F4 = {isa = PBXBuildFile; fileRef = 8E18CE6911615B40AC03E678; };
+52843078228D580EA5B66F16 = {isa = PBXBuildFile; fileRef = B1F8BFA086F45DD5AA18C394; };
+845641C98FAF5C54943A5146 = {isa = PBXBuildFile; fileRef = DF6AF5A7E3ED5551968BDB5C; };
+C5FFCAC71A875A48A3656E31 = {isa = PBXBuildFile; fileRef = 13A14743152454E3A920F03F; };
+6B32A48140875A8E83A85CBA = {isa = PBXBuildFile; fileRef = 2EA0882C8E105A17A39A8EB2; };
+1922E35C0D505A169E54E274 = {isa = PBXBuildFile; fileRef = 09E4180D6B8F58A4B9D8818E; };
+6AD68DCD046E562E829648BA = {isa = PBXBuildFile; fileRef = 468C5C3F789B5F61B67172B5; };
+627D687C081A544A96F6D9ED = {isa = PBXBuildFile; fileRef = BB03C1E4D1135E4C87145B42; };
+2CDAA177897E55C19FF683DD = {isa = PBXBuildFile; fileRef = 2DD865CBFBF55609879C7840; };
+83A6655910A1551D8A58E0DB = {isa = PBXBuildFile; fileRef = 1E59EDAF5C395839B2F7197A; };
+9B42ACDD48CB5F22B9210CF0 = {isa = PBXBuildFile; fileRef = 7279C7B42F0C58B2A53A102F; };
+4CF3C779CA0B56B9B7B572D1 = {isa = PBXBuildFile; fileRef = 0A407E0CE4975CC8869000DC; };
+9CFD0F7C707155F78A932233 = {isa = PBXBuildFile; fileRef = D20A03289CA15588A08DC3C4; };
+01CD7043573B5D4CB068F0B6 = {isa = PBXBuildFile; fileRef = 9A355223994D5656B67E9ED7; };
+9B434F67D3C753FB8492F604 = {isa = PBXBuildFile; fileRef = 017B5E93358058279337F1D6; };
+FF4DB1682AB75BF39794B11C = {isa = PBXBuildFile; fileRef = 881F48180FC251E1B6015B6C; };
+F5214BB36D49555AAE21F8D0 = {isa = PBXBuildFile; fileRef = 4DB49B6BB03F501290999EB8; };
+8706B535216C5D0285C8983E = {isa = PBXBuildFile; fileRef = 959562F32AAD5026A83B0382; };
+E46320AD0B065ECE825825A9 = {isa = PBXBuildFile; fileRef = 2087AA75B1275C5995E03D6C; };
+9354D260E510527DAD361D1B = {isa = PBXBuildFile; fileRef = 45EDBB98B3835C5B8F5A870D; };
+04A8E876546B52C38FFCA816 = {isa = PBXBuildFile; fileRef = 45EDBB98B3835C5B8F5A870D; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy,); }; };
+AB12CD34EF56000100000001 = {isa = PBXBuildFile; fileRef = AB12CD34EF56000100000002; };
+AB12CD34EF56000100000003 = {isa = PBXBuildFile; fileRef = AB12CD34EF56000100000004; };
+AB12CD34EF56000100000005 = {isa = PBXBuildFile; fileRef = AB12CD34EF56000100000006; };
 /* End PBXBuildFile section */
+/* Begin PBXContainerItemProxy section */
+604420592A065E8AB94305BA = {isa = PBXContainerItemProxy; containerPortal = EC2E307776B65C7AACCC2A78; proxyType = 1; remoteGlobalIDString = DD5D04FEBDAC5290AD668723; remoteInfo = ZJXDownloadCore; };
+A8B2C3D4E5F60718293A4B5C = {isa = PBXContainerItemProxy; containerPortal = EC2E307776B65C7AACCC2A78; proxyType = 1; remoteGlobalIDString = DD5D04FEBDAC5290AD668723; remoteInfo = ZJXDownloadCore; };
+AAB2C3D4E5F60718293A4B5C = {isa = PBXContainerItemProxy; containerPortal = EC2E307776B65C7AACCC2A78; proxyType = 1; remoteGlobalIDString = A1B2C3D4E5F60718293A4B5C; remoteInfo = "zjx-download-native-host"; };
+/* End PBXContainerItemProxy section */
+/* Begin PBXCopyFilesBuildPhase section */
+2F2EA353C2085B6DAACF0DCC = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = (04A8E876546B52C38FFCA816,); name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
 /* Begin PBXFileReference section */
-A000000000000000000010 /* SpeedLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/SpeedLimiter.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000011 /* BatchURLPattern.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/BatchURLPattern.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000012 /* Classification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Classification.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000013 /* TaskSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/TaskSelection.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000066 /* ChecksumToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ChecksumToolView.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000000 /* DownloadEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/DownloadEngine.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000001 /* HLSDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/HLSDownloader.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000002 /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/HTTPClient.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000003 /* QueueScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/QueueScheduler.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000004 /* Checksum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Checksum.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000005 /* DownloadPart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DownloadPart.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000006 /* DownloadTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DownloadTask.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000007 /* Policies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Policies.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000008 /* Queue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/Queue.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000009 /* ResourceInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/ResourceInfo.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000A /* AppStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Persistence/AppStateStore.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000B /* FolderBookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/FolderBookmarkStore.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000C /* RESTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/RESTService.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000D /* SecureUpdatePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/SecureUpdatePolicy.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000E /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Settings/AppSettings.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000F /* FileUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Utilities/FileUtilities.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000064 /* ABDownloadManagerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ABDownloadManagerApp.swift; sourceTree = SOURCE_ROOT; };
-A000000000000000000065 /* ClipboardMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/ClipboardMonitor.swift; sourceTree = SOURCE_ROOT; };
-A0000000000000000000C8 /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/IntegrationTests.swift; sourceTree = SOURCE_ROOT; };
-A0000000000000000000C9 /* LocalHTTPFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/LocalHTTPFixture.swift; sourceTree = SOURCE_ROOT; };
-A0000000000000000000CA /* ModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/ModelTests.swift; sourceTree = SOURCE_ROOT; };
-A00000000000000000000101 /* CoreSources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/ABDownloadManagerCore; sourceTree = SOURCE_ROOT; };
-A00000000000000000000102 /* AppSources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/ABDownloadManagerApp; sourceTree = SOURCE_ROOT; };
-A00000000000000000000103 /* Resources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources/ABDownloadManagerApp/Resources; sourceTree = SOURCE_ROOT; };
-A00000000000000000000104 /* Assets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Sources/ABDownloadManagerApp/Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
-A00000000000000000000105 /* Info */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Sources/ABDownloadManagerApp/Info.plist; sourceTree = SOURCE_ROOT; };
-A00000000000000000000106 /* Core product */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ABDownloadManagerCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-A00000000000000000000107 /* App product */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "zjx-download.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-A00000000000000000000108 /* TestSources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Tests/ABDownloadManagerTests; sourceTree = SOURCE_ROOT; };
-A00000000000000000000110 /* AppIntents framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
-A00000000000000000000121 /* English strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
-A00000000000000000000122 /* Simplified Chinese strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
-C00000000000000000000001 /* ar_SA strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar_SA; path = ar_SA.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000002 /* bn_BD strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = bn_BD; path = bn_BD.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000003 /* bqi_IR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = bqi_IR; path = bqi_IR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000004 /* ckb_IR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ckb_IR; path = ckb_IR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000005 /* cs_CZ strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = cs_CZ; path = cs_CZ.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000006 /* de_DE strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de_DE; path = de_DE.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000007 /* en_US strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en_US; path = en_US.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000008 /* es_ES strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es_ES; path = es_ES.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000009 /* fa_IR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fa_IR; path = fa_IR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000000A /* fi_FI strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fi_FI; path = fi_FI.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000000B /* fr_FR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr_FR; path = fr_FR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000000C /* hu_HU strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = hu_HU; path = hu_HU.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000000D /* id_ID strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = id_ID; path = id_ID.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000000E /* it_IT strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it_IT; path = it_IT.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000000F /* ja_JP strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja_JP; path = ja_JP.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000010 /* ka_GE strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ka_GE; path = ka_GE.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000011 /* ko_KR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko_KR; path = ko_KR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000012 /* lt_LT strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = lt_LT; path = lt_LT.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000013 /* pl_PL strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pl_PL; path = pl_PL.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000014 /* pt_BR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pt_BR; path = pt_BR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000015 /* ru_RU strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru_RU; path = ru_RU.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000016 /* sq_AL strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = sq_AL; path = sq_AL.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000017 /* th_TH strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = th_TH; path = th_TH.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000018 /* tr_TR strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr_TR; path = tr_TR.lproj/Localizable.strings; sourceTree = "<group>"; };
-C00000000000000000000019 /* uk_UA strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uk_UA; path = uk_UA.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000001A /* vi_VN strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi_VN; path = vi_VN.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000001B /* zh_CN strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh_CN; path = zh_CN.lproj/Localizable.strings; sourceTree = "<group>"; };
-C0000000000000000000001C /* zh_TW strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh_TW; path = zh_TW.lproj/Localizable.strings; sourceTree = "<group>"; };
-A00000000000000000000120 /* Localizable.strings */ = {isa = PBXVariantGroup; children = (A00000000000000000000121,A00000000000000000000122,C00000000000000000000001,C00000000000000000000002,C00000000000000000000003,C00000000000000000000004,C00000000000000000000005,C00000000000000000000006,C00000000000000000000007,C00000000000000000000008,C00000000000000000000009,C0000000000000000000000A,C0000000000000000000000B,C0000000000000000000000C,C0000000000000000000000D,C0000000000000000000000E,C0000000000000000000000F,C00000000000000000000010,C00000000000000000000011,C00000000000000000000012,C00000000000000000000013,C00000000000000000000014,C00000000000000000000015,C00000000000000000000016,C00000000000000000000017,C00000000000000000000018,C00000000000000000000019,C0000000000000000000001A,C0000000000000000000001B,C0000000000000000000001C,); name = Localizable.strings; sourceTree = "<group>"; };
-A00000000000000000000109 /* Test product */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle.xctest; includeInIndex = 0; path = ABDownloadManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-F00000000000000000000002 /* THIRD_PARTY_NOTICES.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = browser-extension/public/THIRD_PARTY_NOTICES.txt; sourceTree = SOURCE_ROOT; };
-D00000000000000000000064 /* QueueCompletionActionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Engine/QueueCompletionActionRunner.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000065 /* DefaultCategories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DefaultCategories.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000066 /* DownloadInputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DownloadInputParser.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000067 /* HTTPDateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/HTTPDateParser.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000068 /* KeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/KeychainCredentialStore.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000069 /* DNSSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Settings/DNSSettings.swift; sourceTree = SOURCE_ROOT; };
-D0000000000000000000006A /* SupportedLanguages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Settings/SupportedLanguages.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000072 /* SettingsDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Settings/SettingsDraft.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000073 /* VerificationLaunchConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Settings/VerificationLaunchConfiguration.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000075 /* HTTPHeaderEditingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/HTTPHeaderEditingPolicy.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000076 /* DownloadTaskListProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Models/DownloadTaskListProjection.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000077 /* NativeDownloadTaskTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerApp/NativeDownloadTaskTable.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000078 /* RESTAddConfirmationQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/ABDownloadManagerCore/Services/RESTAddConfirmationQueue.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000074 /* IsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/IsolationTests.swift; sourceTree = SOURCE_ROOT; };
-D0000000000000000000006B /* AppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/AppearanceTests.swift; sourceTree = SOURCE_ROOT; };
-D0000000000000000000006C /* KeychainPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/KeychainPersistenceTests.swift; sourceTree = SOURCE_ROOT; };
-D0000000000000000000006D /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/LocalizationTests.swift; sourceTree = SOURCE_ROOT; };
-D0000000000000000000006E /* NetworkSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/NetworkSettingsTests.swift; sourceTree = SOURCE_ROOT; };
-D0000000000000000000006F /* QueueCompletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/QueueCompletionTests.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000070 /* SecureUpdatePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/SecureUpdatePolicyTests.swift; sourceTree = SOURCE_ROOT; };
-D00000000000000000000071 /* SelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/ABDownloadManagerTests/SelectionTests.swift; sourceTree = SOURCE_ROOT; };
+EE0EB7F881614E06835CDE39 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/UpdateService.swift"; sourceTree = SOURCE_ROOT; };
+DA0FA51E846B439CBBD84BF8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/AboutView.swift"; sourceTree = SOURCE_ROOT; };
+A9E2BD0F14694C2198A72E33 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/SegmentedDownloadService.swift"; sourceTree = SOURCE_ROOT; };
+5D0E261DAFA552CC892955D5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/ChecksumService.swift"; sourceTree = SOURCE_ROOT; };
+04609548142F5342AA5E4DD3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/DownloadEngine.swift"; sourceTree = SOURCE_ROOT; };
+497E126D7D30520AAC410992 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/ExchangeCodec.swift"; sourceTree = SOURCE_ROOT; };
+EB41FDDB7C45548B9E171F7F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/HLSService.swift"; sourceTree = SOURCE_ROOT; };
+8E18CE6911615B40AC03E678 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/InputImport.swift"; sourceTree = SOURCE_ROOT; };
+B1F8BFA086F45DD5AA18C394 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/IntegrationServer.swift"; sourceTree = SOURCE_ROOT; };
+DF6AF5A7E3ED5551968BDB5C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/Models.swift"; sourceTree = SOURCE_ROOT; };
+13A14743152454E3A920F03F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/NativeHostProtocol.swift"; sourceTree = SOURCE_ROOT; };
+2EA0882C8E105A17A39A8EB2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/NetworkConfiguration.swift"; sourceTree = SOURCE_ROOT; };
+09E4180D6B8F58A4B9D8818E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/QueueScheduler.swift"; sourceTree = SOURCE_ROOT; };
+468C5C3F789B5F61B67172B5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/SecurityStores.swift"; sourceTree = SOURCE_ROOT; };
+BB03C1E4D1135E4C87145B42 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/StateStore.swift"; sourceTree = SOURCE_ROOT; };
+2DD865CBFBF55609879C7840 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/TaskCoordinator.swift"; sourceTree = SOURCE_ROOT; };
+1E59EDAF5C395839B2F7197A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/AppCommands.swift"; sourceTree = SOURCE_ROOT; };
+7279C7B42F0C58B2A53A102F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/AppMain.swift"; sourceTree = SOURCE_ROOT; };
+0A407E0CE4975CC8869000DC = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/CategoryViews.swift"; sourceTree = SOURCE_ROOT; };
+D20A03289CA15588A08DC3C4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/DownloadComposer.swift"; sourceTree = SOURCE_ROOT; };
+9A355223994D5656B67E9ED7 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/MainWindow.swift"; sourceTree = SOURCE_ROOT; };
+017B5E93358058279337F1D6 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/QueueViews.swift"; sourceTree = SOURCE_ROOT; };
+881F48180FC251E1B6015B6C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/SettingsViews.swift"; sourceTree = SOURCE_ROOT; };
+4DB49B6BB03F501290999EB8 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/SystemIntegration.swift"; sourceTree = SOURCE_ROOT; };
+959562F32AAD5026A83B0382 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadApp/TaskDetailViews.swift"; sourceTree = SOURCE_ROOT; };
+2087AA75B1275C5995E03D6C = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Sources/ZJXDownloadApp/Resources/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
+9859D47897CD56D08127D858 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Sources/ZJXDownloadApp/Info.plist"; sourceTree = SOURCE_ROOT; };
+45EDBB98B3835C5B8F5A870D = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ZJXDownloadCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+9143A47740BC5FBDA2A4D822 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "zjx-download.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+A2B2C3D4E5F60718293A4B5C = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "zjx-download-native-host"; sourceTree = BUILT_PRODUCTS_DIR; };
+A3B2C3D4E5F60718293A4B5C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadNativeHost/NativeHost.swift"; sourceTree = SOURCE_ROOT; };
+AB12CD34EF56000100000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/ZJXDownloadCore/ProcessDNSResolver.swift"; sourceTree = SOURCE_ROOT; };
+AB12CD34EF56000100000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "Sources/ZJXDownloadNetworkShim/ProcessDNSShim.c"; sourceTree = SOURCE_ROOT; };
+AB12CD34EF56000100000006 = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+/* Begin PBXFrameworksBuildPhase section */
+9AB04AD7C634594193DB259D = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (9354D260E510527DAD361D1B,); runOnlyForDeploymentPostprocessing = 0; };
+A7B2C3D4E5F60718293A4B5C = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A6B2C3D4E5F60718293A4B5C,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
 /* Begin PBXGroup section */
-A00000000000000000000201 = {isa = PBXGroup; children = (A00000000000000000000105,A00000000000000000000203,F00000000000000000000002,); sourceTree = SOURCE_ROOT; };
-A00000000000000000000202 = {isa = PBXGroup; children = (A00000000000000000000106,A00000000000000000000107,A00000000000000000000109,); name = Products; sourceTree = BUILT_PRODUCTS_DIR; };
-A00000000000000000000203 = {isa = PBXGroup; children = (A00000000000000000000120,A00000000000000000000104,); name = Resources; path = Sources/ABDownloadManagerApp/Resources; sourceTree = SOURCE_ROOT; };
+BD8915BF72655C9ABACE5872 = {isa = PBXGroup; children = (D26083F26A1F5BA39A7CD83B,129A232611F1534488893B8B,9859D47897CD56D08127D858,AB12CD34EF56000100000006,); sourceTree = "<group>"; };
+D26083F26A1F5BA39A7CD83B = {isa = PBXGroup; children = (4F5274E00BDE5D9D9A0ED827,40A2B6D7A80F5C4FB0C38FFC,B0B2C3D4E5F60718293A4B5C,); name = Sources; sourceTree = "<group>"; };
+B0B2C3D4E5F60718293A4B5C = {isa = PBXGroup; children = (A3B2C3D4E5F60718293A4B5C,); path = Sources/ZJXDownloadNativeHost; sourceTree = SOURCE_ROOT; };
+4F5274E00BDE5D9D9A0ED827 = {isa = PBXGroup; children = (5D0E261DAFA552CC892955D5,04609548142F5342AA5E4DD3,497E126D7D30520AAC410992,EB41FDDB7C45548B9E171F7F,8E18CE6911615B40AC03E678,B1F8BFA086F45DD5AA18C394,DF6AF5A7E3ED5551968BDB5C,13A14743152454E3A920F03F,2EA0882C8E105A17A39A8EB2,AB12CD34EF56000100000002,09E4180D6B8F58A4B9D8818E,468C5C3F789B5F61B67172B5,BB03C1E4D1135E4C87145B42,2DD865CBFBF55609879C7840,EE0EB7F881614E06835CDE39,A9E2BD0F14694C2198A72E33); path = Sources/ZJXDownloadCore; sourceTree = SOURCE_ROOT; };
+40A2B6D7A80F5C4FB0C38FFC = {isa = PBXGroup; children = (1E59EDAF5C395839B2F7197A,7279C7B42F0C58B2A53A102F,0A407E0CE4975CC8869000DC,D20A03289CA15588A08DC3C4,9A355223994D5656B67E9ED7,017B5E93358058279337F1D6,881F48180FC251E1B6015B6C,4DB49B6BB03F501290999EB8,959562F32AAD5026A83B0382,DA0FA51E846B439CBBD84BF8); path = Sources/ZJXDownloadApp; sourceTree = SOURCE_ROOT; };
+129A232611F1534488893B8B = {isa = PBXGroup; children = (45EDBB98B3835C5B8F5A870D,9143A47740BC5FBDA2A4D822,A2B2C3D4E5F60718293A4B5C,); name = Products; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXGroup section */
 /* Begin PBXNativeTarget section */
-A00000000000000000000301 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000501; buildPhases = (A00000000000000000000401,); dependencies = (); name = ABDownloadManagerCore; productName = ABDownloadManagerCore; productReference = A00000000000000000000106; productType = "com.apple.product-type.framework"; };
-A00000000000000000000303 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000504; buildPhases = (A00000000000000000000405,A00000000000000000000406); dependencies = (A00000000000000000000603,); name = ABDownloadManagerTests; productName = ABDownloadManagerTests; productReference = A00000000000000000000109; productType = "com.apple.product-type.bundle.unit-test"; };
-A00000000000000000000302 = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000502; buildPhases = (A00000000000000000000402,A00000000000000000000403,A00000000000000000000404,A00000000000000000000407); dependencies = (A00000000000000000000601,); name = "zjx-download"; productName = "zjx-download"; productReference = A00000000000000000000107; productType = "com.apple.product-type.application"; };
+DD5D04FEBDAC5290AD668723 = {isa = PBXNativeTarget; buildConfigurationList = 0A99925941775EBA98A94B4D; buildPhases = (D790BC22410F5FE1A09BD626,AB12CD34EF56000100000007,); buildRules = (); dependencies = (); name = ZJXDownloadCore; productName = ZJXDownloadCore; productReference = 45EDBB98B3835C5B8F5A870D; productType = "com.apple.product-type.framework"; };
+93A04D17184A52D0BE4C07B0 = {isa = PBXNativeTarget; buildConfigurationList = FBA3853D6B7C5AC1ABFA1940; buildPhases = (3CC0CEF7418E546CB8C792A2,744F5AF514BC583C8F791076,9AB04AD7C634594193DB259D,2F2EA353C2085B6DAACF0DCC,AFB2C3D4E5F60718293A4B5C,); buildRules = (); dependencies = (AF9AC46D0FA350269A5CDA58,ABB2C3D4E5F60718293A4B5C,); name = "zjx-download"; productName = "zjx-download"; productReference = 9143A47740BC5FBDA2A4D822; productType = "com.apple.product-type.application"; };
+A1B2C3D4E5F60718293A4B5C = {isa = PBXNativeTarget; buildConfigurationList = ACB2C3D4E5F60718293A4B5C; buildPhases = (A5B2C3D4E5F60718293A4B5C,A7B2C3D4E5F60718293A4B5C,); buildRules = (); dependencies = (A9B2C3D4E5F60718293A4B5C,); name = "zjx-download-native-host"; productName = "zjx-download-native-host"; productReference = A2B2C3D4E5F60718293A4B5C; productType = "com.apple.product-type.tool"; };
 /* End PBXNativeTarget section */
 /* Begin PBXProject section */
-A00000000000000000000701 = {isa = PBXProject; attributes = { LastUpgradeCheck = 2650; TargetAttributes = { A00000000000000000000301 = {CreatedOnToolsVersion = 26.5;}; A00000000000000000000302 = {CreatedOnToolsVersion = 26.5;};};}; buildConfigurationList = A00000000000000000000503; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (Base,ar_SA,bn_BD,bqi_IR,ckb_IR,cs_CZ,de_DE,en,en_US,es_ES,fa_IR,fi_FI,fr_FR,hu_HU,id_ID,it_IT,ja_JP,ka_GE,ko_KR,lt_LT,pl_PL,pt_BR,ru_RU,sq_AL,th_TH,tr_TR,uk_UA,vi_VN,"zh-Hans",zh_CN,zh_TW,); mainGroup = A00000000000000000000201; productRefGroup = A00000000000000000000202; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000301,A00000000000000000000302,A00000000000000000000303,); };
+EC2E307776B65C7AACCC2A78 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2650; TargetAttributes = {DD5D04FEBDAC5290AD668723 = {CreatedOnToolsVersion = 26.5;}; 93A04D17184A52D0BE4C07B0 = {CreatedOnToolsVersion = 26.5;}; A1B2C3D4E5F60718293A4B5C = {CreatedOnToolsVersion = 26.5;}; }; }; buildConfigurationList = E64F5CF896D3557CBBF46C6E; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, "zh-Hans",); mainGroup = BD8915BF72655C9ABACE5872; productRefGroup = 129A232611F1534488893B8B; projectDirPath = ""; projectRoot = ""; targets = (DD5D04FEBDAC5290AD668723,93A04D17184A52D0BE4C07B0,A1B2C3D4E5F60718293A4B5C,); };
 /* End PBXProject section */
 /* Begin PBXBuildPhase section */
-A00000000000000000000401 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000000,B000000000000000000001,B000000000000000000010,B000000000000000000011,B000000000000000000012,B000000000000000000013,B000000000000000000002,B000000000000000000003,B000000000000000000004,B000000000000000000005,B000000000000000000006,B000000000000000000007,B000000000000000000008,B000000000000000000009,B00000000000000000000A,B00000000000000000000B,B00000000000000000000C,B00000000000000000000D,B00000000000000000000E,B00000000000000000000F,E00000000000000000000064,E00000000000000000000065,E00000000000000000000066,E00000000000000000000067,E00000000000000000000068,E00000000000000000000069,E0000000000000000000006A,E00000000000000000000072,E00000000000000000000073,E00000000000000000000075,E00000000000000000000076,E00000000000000000000078); runOnlyForDeploymentPostprocessing = 0; };
-A00000000000000000000402 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B000000000000000000064,B000000000000000000065,B000000000000000000066,E00000000000000000000077); runOnlyForDeploymentPostprocessing = 0; };
-A00000000000000000000403 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000009,A00000000000000000000004,B0000000000000000000CB,); runOnlyForDeploymentPostprocessing = 0; };
-A00000000000000000000404 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000006,A00000000000000000000008,); runOnlyForDeploymentPostprocessing = 0; };
-A00000000000000000000405 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B0000000000000000000C8,B0000000000000000000C9,B0000000000000000000CA,E0000000000000000000006B,E0000000000000000000006C,E0000000000000000000006D,E0000000000000000000006E,E0000000000000000000006F,E00000000000000000000070,E00000000000000000000071,E00000000000000000000074); runOnlyForDeploymentPostprocessing = 0; };
-A00000000000000000000406 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000007,); runOnlyForDeploymentPostprocessing = 0; };
-A00000000000000000000407 = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = (A00000000000000000000006,); runOnlyForDeploymentPostprocessing = 0; };
+D790BC22410F5FE1A09BD626 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (3954BD6B676451C59AE04E5A,9BCF3F1CE26753C382D1E9D9,B521B32A70E85D20803B0A02,58CB5576D82F5DDE9393F30D,C40994BF789751AF8C3D80F4,52843078228D580EA5B66F16,845641C98FAF5C54943A5146,C5FFCAC71A875A48A3656E31,6B32A48140875A8E83A85CBA,AB12CD34EF56000100000001,AB12CD34EF56000100000003,1922E35C0D505A169E54E274,6AD68DCD046E562E829648BA,627D687C081A544A96F6D9ED,2CDAA177897E55C19FF683DD,77962F72EE504B91898AF4A5,3C4E2A7B9D704A51A86FE301); runOnlyForDeploymentPostprocessing = 0; };
+AB12CD34EF56000100000007 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (AB12CD34EF56000100000005,); runOnlyForDeploymentPostprocessing = 0; };
+3CC0CEF7418E546CB8C792A2 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (83A6655910A1551D8A58E0DB,9B42ACDD48CB5F22B9210CF0,4CF3C779CA0B56B9B7B572D1,9CFD0F7C707155F78A932233,01CD7043573B5D4CB068F0B6,9B434F67D3C753FB8492F604,FF4DB1682AB75BF39794B11C,F5214BB36D49555AAE21F8D0,8706B535216C5D0285C8983E,190DCE3E3FE34A86AA07FE72,); runOnlyForDeploymentPostprocessing = 0; };
+A5B2C3D4E5F60718293A4B5C = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A4B2C3D4E5F60718293A4B5C,); runOnlyForDeploymentPostprocessing = 0; };
+744F5AF514BC583C8F791076 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (E46320AD0B065ECE825825A9,); runOnlyForDeploymentPostprocessing = 0; };
+AFB2C3D4E5F60718293A4B5C = {isa = PBXShellScriptBuildPhase; alwaysOutOfDate = 1; buildActionMask = 2147483647; files = (); inputPaths = ("$(BUILT_PRODUCTS_DIR)/zjx-download-native-host","$(SRCROOT)/scripts/manage-native-host","$(SRCROOT)/scripts/apply-macos-update",); name = "Embed Native Messaging Host"; outputPaths = ("$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/zjx-download-native-host","$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/manage-native-host","$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/apply-macos-update",); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/zsh; shellScript = "set -euo pipefail\ndestination=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers\"\nmkdir -p \"$destination\"\ncp -f \"$BUILT_PRODUCTS_DIR/zjx-download-native-host\" \"$destination/zjx-download-native-host\"\ncp -f \"$SRCROOT/scripts/manage-native-host\" \"$destination/manage-native-host\"\ncp -f \"$SRCROOT/scripts/apply-macos-update\" \"$destination/apply-macos-update\"\nchmod 755 \"$destination/zjx-download-native-host\" \"$destination/manage-native-host\" \"$destination/apply-macos-update\"\n"; };
 /* End PBXBuildPhase section */
+/* Begin PBXTargetDependency section */
+AF9AC46D0FA350269A5CDA58 = {isa = PBXTargetDependency; target = DD5D04FEBDAC5290AD668723; targetProxy = 604420592A065E8AB94305BA; };
+ABB2C3D4E5F60718293A4B5C = {isa = PBXTargetDependency; target = A1B2C3D4E5F60718293A4B5C; targetProxy = AAB2C3D4E5F60718293A4B5C; };
+A9B2C3D4E5F60718293A4B5C = {isa = PBXTargetDependency; target = DD5D04FEBDAC5290AD668723; targetProxy = A8B2C3D4E5F60718293A4B5C; };
+/* End PBXTargetDependency section */
 /* Begin XCBuildConfiguration section */
-A00000000000000000000801 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerCore; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.core; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; DEFINES_MODULE = YES; ENABLE_TESTABILITY = YES; LD_DYLIB_INSTALL_NAME = "@rpath/ABDownloadManagerCore.framework/Versions/A/ABDownloadManagerCore"; ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
-A00000000000000000000802 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerCore; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.core; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; DEFINES_MODULE = YES; ALWAYS_SEARCH_USER_PATHS = NO; LD_DYLIB_INSTALL_NAME = "@rpath/ABDownloadManagerCore.framework/Versions/A/ABDownloadManagerCore"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
-A00000000000000000000803 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = "zjx-download"; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download; ABDM_REQUIRES_ISOLATION = NO; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; INFOPLIST_FILE = Sources/ABDownloadManagerApp/Info.plist; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; ENABLE_APP_INTENTS_METADATA = NO; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; }; name = Debug; };
-A00000000000000000000804 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = "zjx-download"; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download; ABDM_REQUIRES_ISOLATION = NO; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; INFOPLIST_FILE = Sources/ABDownloadManagerApp/Info.plist; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
-A00000000000000000000805 = {isa = XCBuildConfiguration; buildSettings = { SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
-A00000000000000000000807 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerTests; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.tests; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; GENERATE_INFOPLIST_FILE = YES; BUNDLE_LOADER = "$(TEST_HOST)"; ENABLE_APP_INTENTS_METADATA = NO; }; name = Debug; };
-A00000000000000000000808 = {isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = ABDownloadManagerTests; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.tests; SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; GENERATE_INFOPLIST_FILE = YES; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
-A00000000000000000000806 = {isa = XCBuildConfiguration; buildSettings = { SWIFT_VERSION = 6.0; MACOSX_DEPLOYMENT_TARGET = 26.0; ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_APP_INTENTS_METADATA = NO; }; name = Release; };
+D1297B4A1BD65833B1B89AE3 = {isa = XCBuildConfiguration; buildSettings = {DEFINES_MODULE = YES; DYLIB_INSTALL_NAME_BASE = "@rpath"; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 26.0; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.core; PRODUCT_NAME = ZJXDownloadCore; SKIP_INSTALL = YES; SWIFT_VERSION = 6.0;}; name = Debug;};
+FF94D04138135DE5A8786459 = {isa = XCBuildConfiguration; buildSettings = {DEFINES_MODULE = YES; DYLIB_INSTALL_NAME_BASE = "@rpath"; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 26.0; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.core; PRODUCT_NAME = ZJXDownloadCore; SKIP_INSTALL = YES; SWIFT_VERSION = 6.0;}; name = Release;};
+12A3699DFAAA5F549AC6930F = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; INFOPLIST_FILE = "Sources/ZJXDownloadApp/Info.plist"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; MACOSX_DEPLOYMENT_TARGET = 26.0; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download; PRODUCT_NAME = "zjx-download"; SWIFT_VERSION = 6.0;}; name = Debug;};
+F7AF45125BA25CEF8C380536 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGNING_ALLOWED = NO; CODE_SIGNING_REQUIRED = NO; INFOPLIST_FILE = "Sources/ZJXDownloadApp/Info.plist"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; MACOSX_DEPLOYMENT_TARGET = 26.0; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download; PRODUCT_NAME = "zjx-download"; SWIFT_VERSION = 6.0;}; name = Release;};
+28D9A44462185CD692CA69B7 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_USER_SCRIPT_SANDBOXING = YES; MACOSX_DEPLOYMENT_TARGET = 26.0; SWIFT_VERSION = 6.0;}; name = Debug;};
+A41F7CC39C9B590C929C7027 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; ENABLE_USER_SCRIPT_SANDBOXING = YES; MACOSX_DEPLOYMENT_TARGET = 26.0; SWIFT_VERSION = 6.0;}; name = Release;};
+ADB2C3D4E5F60718293A4B5C = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks"; MACOSX_DEPLOYMENT_TARGET = 26.0; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.native-host; PRODUCT_NAME = "zjx-download-native-host"; SKIP_INSTALL = YES; SWIFT_VERSION = 6.0;}; name = Debug;};
+AEB2C3D4E5F60718293A4B5C = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks"; MACOSX_DEPLOYMENT_TARGET = 26.0; PRODUCT_BUNDLE_IDENTIFIER = com.zjx.download.native-host; PRODUCT_NAME = "zjx-download-native-host"; SKIP_INSTALL = YES; SWIFT_VERSION = 6.0;}; name = Release;};
 /* End XCBuildConfiguration section */
 /* Begin XCConfigurationList section */
-A00000000000000000000501 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000801,A00000000000000000000802,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-A00000000000000000000502 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000803,A00000000000000000000804,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-A00000000000000000000503 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000805,A00000000000000000000806,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-A00000000000000000000504 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000807,A00000000000000000000808,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+0A99925941775EBA98A94B4D = {isa = XCConfigurationList; buildConfigurations = (D1297B4A1BD65833B1B89AE3,FF94D04138135DE5A8786459,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+FBA3853D6B7C5AC1ABFA1940 = {isa = XCConfigurationList; buildConfigurations = (12A3699DFAAA5F549AC6930F,F7AF45125BA25CEF8C380536,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+E64F5CF896D3557CBBF46C6E = {isa = XCConfigurationList; buildConfigurations = (28D9A44462185CD692CA69B7,A41F7CC39C9B590C929C7027,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+ACB2C3D4E5F60718293A4B5C = {isa = XCConfigurationList; buildConfigurations = (ADB2C3D4E5F60718293A4B5C,AEB2C3D4E5F60718293A4B5C,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
 /* End XCConfigurationList section */
-/* Begin PBXTargetDependency section */
-A00000000000000000000601 = {isa = PBXTargetDependency; target = A00000000000000000000301; targetProxy = A00000000000000000000602; };
-/* End PBXTargetDependency section */
-/* Begin PBXContainerItemProxy section */
-A00000000000000000000603 = {isa = PBXTargetDependency; target = A00000000000000000000301; targetProxy = A00000000000000000000604; };
-A00000000000000000000604 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000701; proxyType = 1; remoteGlobalIDString = A00000000000000000000301; remoteInfo = ABDownloadManagerCore; };
-A00000000000000000000602 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000701; proxyType = 1; remoteGlobalIDString = A00000000000000000000301; remoteInfo = ABDownloadManagerCore; };
-/* End PBXContainerItemProxy section */
  };
- rootObject = A00000000000000000000701;
+ rootObject = EC2E307776B65C7AACCC2A78;
 }

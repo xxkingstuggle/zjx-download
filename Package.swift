@@ -3,31 +3,16 @@ import PackageDescription
 
 let package = Package(
     name: "zjx-download",
-    defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     products: [
-        .executable(name: "zjx-download", targets: ["ABDownloadManagerApp"]),
-        .library(name: "ABDownloadManagerCore", targets: ["ABDownloadManagerCore"]),
+        .library(name: "ZJXDownloadCore", targets: ["ZJXDownloadCore"]),
+        .executable(name: "zjx-download-cli", targets: ["ZJXDownloadCLI"]),
+        .executable(name: "zjx-download-native-host", targets: ["ZJXDownloadNativeHost"]),
     ],
     targets: [
-        .target(
-            name: "ABDownloadManagerCore",
-            path: "Sources/ABDownloadManagerCore",
-            swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
-        .executableTarget(
-            name: "ABDownloadManagerApp",
-            dependencies: ["ABDownloadManagerCore"],
-            path: "Sources/ABDownloadManagerApp",
-            exclude: ["Info.plist"],
-            resources: [.process("Resources")],
-            swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
-        .testTarget(
-            name: "ABDownloadManagerTests",
-            dependencies: ["ABDownloadManagerCore"],
-            path: "Tests/ABDownloadManagerTests",
-            swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
+        .target(name: "ZJXDownloadNetworkShim", path: "Sources/ZJXDownloadNetworkShim", publicHeadersPath: "include", linkerSettings: [.linkedFramework("Network")]),
+        .target(name: "ZJXDownloadCore", dependencies: ["ZJXDownloadNetworkShim"], path: "Sources/ZJXDownloadCore", swiftSettings: [.swiftLanguageMode(.v6)]),
+        .executableTarget(name: "ZJXDownloadCLI", dependencies: ["ZJXDownloadCore"], path: "Sources/ZJXDownloadCLI", swiftSettings: [.swiftLanguageMode(.v6)]),
+        .executableTarget(name: "ZJXDownloadNativeHost", dependencies: ["ZJXDownloadCore"], path: "Sources/ZJXDownloadNativeHost", swiftSettings: [.swiftLanguageMode(.v6)]),
     ]
 )
