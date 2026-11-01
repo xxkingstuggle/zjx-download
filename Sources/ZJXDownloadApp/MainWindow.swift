@@ -12,7 +12,6 @@ struct MainWindow: View {
     @State private var showingComposer = false
     @State private var editingTaskID: Int64?
     @State private var showingImporter = false
-    @State private var showingSettings = false
     @State private var showingQueues = false
     @State private var showingCategories = false
     @State private var showingChecksum = false
@@ -81,10 +80,14 @@ struct MainWindow: View {
                     Spacer()
                     TextField("搜索名称或网址", text: $query).textFieldStyle(.roundedBorder).frame(maxWidth: 280)
                     Button { showingImporter = true } label: { Label("批量导入", systemImage: "text.badge.plus") }
-                    Button { showingSettings = true } label: { Image(systemName: "gearshape") }.help("设置")
+                    SettingsLink { Image(systemName: "gearshape") }.help("设置")
                 }.padding(.horizontal)
                     .padding(.vertical, coordinator.data.settings.compactToolbar ? 6 : 14)
-                taskTable(visibleTasks)
+                if visibleTasks.isEmpty {
+                    emptyTaskList
+                } else {
+                    taskTable(visibleTasks)
+                }
                 HStack {
                     Text("\(visibleTasks.count) 项").foregroundStyle(.secondary)
                     if let port = server.listeningPort { Label("本机接口 127.0.0.1:\(port)", systemImage: "point.3.connected.trianglepath.dotted").font(.caption).foregroundStyle(.secondary) }
@@ -103,7 +106,6 @@ struct MainWindow: View {
                 if let editingTaskID { DownloadComposer(coordinator: coordinator, editingTaskID: editingTaskID) }
             }
             .sheet(isPresented: $showingImporter) { BatchImportView(coordinator: coordinator) }
-            .sheet(isPresented: $showingSettings) { SettingsWindow(coordinator: coordinator) }
             .sheet(isPresented: $showingQueues) { QueueViews(coordinator: coordinator) }
             .sheet(isPresented: $showingCategories) { CategoryViews(coordinator: coordinator) }
             .sheet(isPresented: $showingChecksum) { ChecksumViews(initialFile: checksumFile) }
@@ -168,6 +170,32 @@ struct MainWindow: View {
                 NSApp.windows.first(where: { $0.title == ProductIdentity.name })?.makeKeyAndOrderFront(nil)
             }
         }
+    }
+
+    private var emptyTaskList: some View {
+        ContentUnavailableView {
+            if coordinator.data.tasks.isEmpty {
+                Label("还没有下载任务", systemImage: "arrow.down.circle")
+            } else {
+                Label(query.isEmpty ? "此视图暂无任务" : "没有匹配的任务", systemImage: "magnifyingglass")
+            }
+        } description: {
+            if coordinator.data.tasks.isEmpty {
+                Text("添加下载链接，或批量导入已有链接。")
+            } else if query.isEmpty {
+                Text("可以在侧栏选择其他状态、分类或队列。")
+            } else {
+                Text("试试其他名称或网址，或清除搜索查看当前视图。")
+            }
+        } actions: {
+            if coordinator.data.tasks.isEmpty {
+                Button("新建下载") { showingComposer = true }.buttonStyle(.borderedProminent)
+                Button("批量导入") { showingImporter = true }
+            } else if !query.isEmpty {
+                Button("清除搜索") { query = "" }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func taskTable(_ rows: [DownloadRecord]) -> some View {

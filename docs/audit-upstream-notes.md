@@ -1,5 +1,7 @@
 # Upstream / Rewrite Cross-Audit Notes
 
+> 历史记录：本文属于 2026-10-18 替换前的实现/审计阶段，保留用于追溯。文中的“当前”、测试结果和执行任务不适用于现役实现；现役入口见 [文档索引](README.md)，执行边界以根目录 AGENTS.md 为准。
+
 Audit date: 2026-09-14. Upstream = `amir1376/ab-download-manager`, default branch `master`.
 All upstream file paths below were fetched and read (via `gh api` / raw content). Swift references are to this repo unless prefixed with `upstream:`.
 

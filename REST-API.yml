@@ -1,8 +1,12 @@
 openapi: 3.0.0
 info:
-  title: Download Service API
+  title: Historical upstream Download Service API
   version: 1.0.0
-  description: API for managing download tasks and queues.
+  description: >-
+    Historical upstream 1.0 specification, preserved for reference. This is not
+    the current zjx-download contract. See docs/README.md and
+    Sources/ZJXDownloadCore/IntegrationServer.swift. Current add endpoints return
+    structured JSON receipts rather than the plain OK responses documented below.
 servers:
   - url: http://localhost:15151
     description: Default server running on port 15151

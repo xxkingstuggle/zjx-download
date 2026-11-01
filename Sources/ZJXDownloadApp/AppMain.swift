@@ -81,8 +81,11 @@ struct ZJXDownloadApplication: App {
                 .environment(\.locale, appLocale)
                 .dynamicTypeSize(dynamicTypeSize)
         }
+        .defaultSize(width: 860, height: 640)
+        .windowResizability(.contentMinSize)
         Window("关于 zjx-download", id: "about") {
             AboutView().frame(width: 600, height: 330)
+                .preferredColorScheme(colorScheme)
         }
         .windowStyle(.hiddenTitleBar)
         MenuBarExtra(ProductIdentity.name, systemImage: "arrow.down.circle", isInserted: Binding(
@@ -103,7 +106,7 @@ struct ZJXDownloadApplication: App {
     private var colorScheme: ColorScheme? {
         switch coordinator.data.settings.appearance {
         case .system:
-            ["Light", "Light Gray"].contains(coordinator.data.settings.theme) ? .light : .dark
+            nil
         case .light: .light
         case .dark: .dark
         }

@@ -1,5 +1,7 @@
 # 功能差距矩阵
 
+> 历史记录：本文属于 2026-10-18 替换前的实现/审计阶段，保留用于追溯。文中的“当前”、测试结果和执行任务不适用于现役实现；现役入口见 [文档索引](../README.md)，执行边界以根目录 AGENTS.md 为准。
+
 当前权威状态更新：2026-10-04 RC3。范围为 macOS 原生桌面和 `zjx-download` Chrome 扩展；Firefox、Android、网站排除。`swift test` 100/100、0失败、9.738s；原99项保留，新增1项覆盖正在进行的Range请求取消状态。生产Universal Release app与隔离verifier均构建成功，verifier缺隔离参数退出78。候选包位于 `<local-releases>/1.0.0-20261004-rc3/`。
 
 ## 2026-10-04 RC3 当前证据矩阵（权威）
@@ -82,7 +84,7 @@
 
 | 区域 | 固定上游行为 | 本地实现与证据 | 状态 / 差距 |
 |---|---|---|---|
-| 主窗口、导航 | 下载、队列、分类、历史与设置；工具栏、列表、类别面板、页脚统计；可调整列表状态 | SwiftUI `NavigationSplitView`；Downloads、Queues、Categories、History、Settings 独立侧栏项；下载页仅“新建、详情、刷新”工具栏。主窗口源码 `[ABDownloadManagerApp.swift](../../Sources/ABDownloadManagerApp/ABDownloadManagerApp.swift#L554)`；本轮 CoreGraphics 元数据显示 Release app 有一个屏幕可见的“下载”窗口，1100×720 | **部分实现**：运行窗体已出现；未做截图、视觉、导航或不同尺寸人工验收；上游页面内的类别/队列筛选被拆为侧栏页，缺少同页工作流 |
+| 主窗口、导航 | 下载、队列、分类、历史与设置；工具栏、列表、类别面板、页脚统计；可调整列表状态 | SwiftUI `NavigationSplitView`；Downloads、Queues、Categories、History、Settings 独立侧栏项；下载页仅“新建、详情、刷新”工具栏。主窗口源码 `ABDownloadManagerApp.swift（历史源码：`../../Sources/ABDownloadManagerApp/ABDownloadManagerApp.swift#L554`；已从现役树移除，需查 Git 历史）`；本轮 CoreGraphics 元数据显示 Release app 有一个屏幕可见的“下载”窗口，1100×720 | **部分实现**：运行窗体已出现；未做截图、视觉、导航或不同尺寸人工验收；上游页面内的类别/队列筛选被拆为侧栏页，缺少同页工作流 |
 | 下载表格 | Check、Name、Size、Status、Speed、Time Left、Date Added、Date Started、Date Finished；列可排序、显隐、调整宽度，列表虚拟化；新增时间列默认隐藏 | 本地 `List` 行展示图标、文件名、进度、状态、速度，按创建时间倒序；无表头、列排序/显隐、时间列或列状态存储。参见本地 `DownloadList` 749–798 行；上游 [HomeComponent.kt](https://github.com/amir1376/ab-download-manager/blob/777ac0a9f5c47e9afeb34e7fddb37c477b9923f3/desktop/app/src/main/kotlin/com/abdownloadmanager/desktop/pages/home/HomeComponent.kt) 和 [DownloadList.kt](https://github.com/amir1376/ab-download-manager/blob/777ac0a9f5c47e9afeb34e7fddb37c477b9923f3/desktop/app/src/main/kotlin/com/abdownloadmanager/desktop/pages/home/sections/DownloadList.kt) | **部分实现**：核心列表数据模型存在；表格能力缺失。上游固定提交的 Started/Finished 时间列也没有本地对应字段展示 |
 | 搜索和筛选 | 文本搜索、类别、队列、All/Finished/Unfinished 状态筛选 | 没有搜索框、筛选状态或结果计数；取消任务从活动列表隐藏，其余任务按日期排序 | **缺失**。上游 [FilterState.kt](https://github.com/amir1376/ab-download-manager/blob/777ac0a9f5c47e9afeb34e7fddb37c477b9923f3/shared/app/src/commonMain/kotlin/com/abdownloadmanager/shared/pages/home/FilterState.kt) |
 | 多选 | 复选框、全选、Ctrl/Command+A、Esc 清空、Shift/Command 多选；空白处取消选择；右键对准点击行或当前多选 | SwiftUI `List(selection:)` 绑定 `Set<Int64>`；有可见项全选、计数、批量状态门控、稳定主选择；`SelectionTests` 25 项通过。参见本地 173–254、749–793、800–834 行 | **核心已测/UI 未验**：Command-click、Shift-click、键盘焦点、VoiceOver、多选右键、滚动及窗口缩放组合未用真实 UI 验收 |
@@ -159,9 +161,9 @@
 
 ### 已确认缺陷（实现前 P0 修复）
 
-1. **批量下载 UI 无法单独提交。** `NewDownloadSheet` Add 在 [ABDownloadManagerApp.swift](../../Sources/ABDownloadManagerApp/ABDownloadManagerApp.swift#L968) 的禁用条件只看 `links`；复现：打开新建 → 留空 Links → 仅填写 Batch pattern/start/end → Add 按钮仍 disabled。`addBatch` 调用与 `DownloadRequest` 构造也漏传 headers、checksum、speed、category、conflict。
-2. **per-host 并发覆盖。** [AppStateStore.swift](../../Sources/ABDownloadManagerCore/Persistence/AppStateStore.swift#L137) 添加任务时用匹配 host 的 `threadCount` 写入 `task.connectionCount`；[DownloadEngine.swift](../../Sources/ABDownloadManagerCore/Engine/DownloadEngine.swift#L142) 开始时再无条件以全局 `settings.threadCount` 重设。复现：配置 host override 线程数 2、全局线程数 8；为该 host 建任务，再启动；创建时显示 2，执行前被写成 8。未运行网络下载验证，但覆盖顺序在源码可确认。
-3. **启用鉴权但密钥为空时实际无鉴权。** [AppSettings.swift](../../Sources/ABDownloadManagerCore/Settings/AppSettings.swift#L178) 只有 `authEnabled && !apiKey.isEmpty` 才返回 enforcedKey；本地 Settings 允许打开鉴权并保存空字段。修复需阻止空密钥或生成密钥，再用无 key/错 key/正确 key 的 API 验收。
+1. **批量下载 UI 无法单独提交。** `NewDownloadSheet` Add 在 ABDownloadManagerApp.swift（历史源码：`../../Sources/ABDownloadManagerApp/ABDownloadManagerApp.swift#L968`；已从现役树移除，需查 Git 历史） 的禁用条件只看 `links`；复现：打开新建 → 留空 Links → 仅填写 Batch pattern/start/end → Add 按钮仍 disabled。`addBatch` 调用与 `DownloadRequest` 构造也漏传 headers、checksum、speed、category、conflict。
+2. **per-host 并发覆盖。** AppStateStore.swift（历史源码：`../../Sources/ABDownloadManagerCore/Persistence/AppStateStore.swift#L137`；已从现役树移除，需查 Git 历史） 添加任务时用匹配 host 的 `threadCount` 写入 `task.connectionCount`；DownloadEngine.swift（历史源码：`../../Sources/ABDownloadManagerCore/Engine/DownloadEngine.swift#L142`；已从现役树移除，需查 Git 历史） 开始时再无条件以全局 `settings.threadCount` 重设。复现：配置 host override 线程数 2、全局线程数 8；为该 host 建任务，再启动；创建时显示 2，执行前被写成 8。未运行网络下载验证，但覆盖顺序在源码可确认。
+3. **启用鉴权但密钥为空时实际无鉴权。** AppSettings.swift（历史源码：`../../Sources/ABDownloadManagerCore/Settings/AppSettings.swift#L178`；已从现役树移除，需查 Git 历史） 只有 `authEnabled && !apiKey.isEmpty` 才返回 enforcedKey；本地 Settings 允许打开鉴权并保存空字段。修复需阻止空密钥或生成密钥，再用无 key/错 key/正确 key 的 API 验收。
 4. **更新、队列结束动作、多个 Settings 是“可存不能用”。** 禁止把数据模型/Picker 存在当完成；上述更新器、`QueueCompletionAction` 和死字段应接通真实逻辑或从兼容配置中明确迁移。
 
 ## 审查边界

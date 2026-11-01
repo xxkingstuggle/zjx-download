@@ -1,5 +1,5 @@
-# ❤️ Donate
+# Upstream donations
 
-This app is completely free, contains no ads, respects your privacy, and is open source. Its development and maintenance require significant time and effort. Your support helps keep the project alive and continuously improving.
+The inherited donation link below supports **AB Download Manager**, the upstream project. It is not a zjx-download donation channel.
 
-Please visit https://abdownloadmanager.com/donate to view the available ways to support the project.
+[Support AB Download Manager](https://abdownloadmanager.com/donate).

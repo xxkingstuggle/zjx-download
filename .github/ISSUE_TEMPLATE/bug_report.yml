@@ -8,8 +8,8 @@ body:
       value: |
         Thank you for taking the time to report a bug!
         ### Before submitting
-        - Search the existing [issues](./issues) to check whether this has already been reported.
-        - Read the [Contributing guidelines](./blob/master/CONTRIBUTING.md#bug-reports) for bug reporting requirements.
+        - Search the existing [issues](https://github.com/xxkingstuggle/zjx-download/issues) to check whether this has already been reported.
+        - Read the [Contributing guidelines](https://github.com/xxkingstuggle/zjx-download/blob/main/CONTRIBUTING.md#bug-reports) for bug reporting requirements.
   - type: textarea
     id: description
     attributes:
@@ -22,24 +22,24 @@ body:
     id: app-version
     attributes:
       label: 🏷️ App Version
-      description: e.g., 1.2.3
-      placeholder: "1.2.3"
+      description: App version/build and Chrome extension version/ID, if relevant
+      placeholder: "2.0.2 / 20261023.1; Chrome extension 2.0.1"
     validations:
       required: true
   - type: input
     id: platform
     attributes:
       label: 💻 Platform
-      description: e.g., Windows 11, macOS 14.2, Ubuntu 24.04
-      placeholder: "Windows 11"
+      description: macOS version and Chrome version, if relevant
+      placeholder: "macOS 26.x; Chrome version"
     validations:
       required: true
   - type: input
     id: installation-type
     attributes:
       label: 📦 Installation Type (optional)
-      description: e.g., .exe installer, dmg file, package manager, installation script
-      placeholder: ".exe installer"
+      description: App bundle source and unpacked Chrome extension source, if relevant
+      placeholder: "Local signed App bundle"
     validations:
       required: false
   - type: input

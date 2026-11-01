@@ -4,15 +4,18 @@
 
 ## Current delivery
 
-- App: **2.0.1**, build **20261018.2**, installed at `/Applications/zjx-download.app`; bundle ID `com.zjx.download`, Universal x86_64/arm64. Apple Development signed; not notarized.
-- Chrome extension: **2.0.1**, ID `ikfafcgjoghicpkoolbofdaoonendhak`. Reload the updated unpacked extension using [the Chrome guide](docs/native-rebuild/chrome-install.md).
-- Downloads: `/Users/zjx/Developer/releases/zjx-download/2.0.1-repair-20261018/`, including App, CLI, Chrome ZIP and unpacked extension.
-- This update addresses repeated settings writes, transfer progress overhead, file commit/cancellation safety and Chrome handoff receipt handling. See [repair notes](docs/native-rebuild/repair-release-20261018.md).
-- App, CLI and Chrome builds succeeded. Runtime behavior and performance remain **待用户测试**; the executor has not launched the new App or run functional tests. Start with A-053/A-054 and A-002 in [the manual checklist](docs/native-rebuild/manual-test-checklist.md); return results using [the result template](docs/native-rebuild/test-result-template.md). All A-001…A-067 remain pending.
+- App: **2.0.2**, build **20261023.1**, installed at `/Applications/zjx-download.app`; bundle ID `com.zjx.download`, Universal x86_64/arm64. Apple Development signed; not notarized.
+- Chrome extension remains **2.0.1**, ID `ikfafcgjoghicpkoolbofdaoonendhak`; no extension source changes in this update. See [the Chrome guide](docs/native-rebuild/chrome-install.md).
+- Downloads: `/Users/zjx/Developer/releases/zjx-download/2.0.2-ui-20261023/`, including App, CLI, Chrome ZIP and unpacked extension.
+- This update lets system appearance control light/dark mode, separates accent colors from appearance, replaces the crowded settings sheet with a resizable settings window with sidebar navigation and grouped scrolling forms, and adds clear empty-list/search states. Earlier transfer and handoff repairs remain documented in [the repair notes](docs/native-rebuild/repair-release-20261018.md).
+- Universal App, both CLI architectures and Chrome builds succeeded. Strict signature, identity, icon and architecture checks passed. The executor has not launched the new App or run functional/UI tests. Recheck A-047 and A-068…A-070 in [the manual checklist](docs/native-rebuild/manual-test-checklist.md); all A-001…A-070 remain **待用户测试** on this build. The `Network.NWError 22` visible in the user's screenshot remains unresolved.
+- The old 2.0.1 App is preserved at `/Users/zjx/Developer/releases/zjx-download/archive/20261023-pre-ui-20261023.1/`. Installation is recorded in [INSTALL_LEDGER.md](INSTALL_LEDGER.md). This update is local and has not been committed or pushed.
 - Data remains under `~/Library/Application Support/zjx-download/`. Legacy `ABDownloadManager/state.json` is available for preview and explicit import, preserving the source. No data migration was performed during this update.
 - Current boundaries and acceptance status: [BLOCKED.md](BLOCKED.md).
 
-Source repository: [xxkingstuggle/zjx-download](https://github.com/xxkingstuggle/zjx-download), an independent private repository with the current implementation on its default branch `main`. Project workflow and data boundaries: [AGENTS.md](AGENTS.md).
+Source repository: [xxkingstuggle/zjx-download](https://github.com/xxkingstuggle/zjx-download), an independent private repository whose default branch is `main`. Remote `main` contains the 2.0.1 rebuild; the 2.0.2 changes remain in the local working tree (checked 2026-11-01). Project workflow and data boundaries: [AGENTS.md](AGENTS.md).
+
+Documentation map, historical evidence and API contract boundaries: [docs/README.md](docs/README.md). The latest delivery audit is recorded in [PROGRESS.md](PROGRESS.md).
 
 ## Build
 
@@ -25,7 +28,7 @@ xcodebuild -project zjx-download.xcodeproj \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO build
 
-swift build -c release
+swift build -c release --product zjx-download-cli
 npm --prefix browser-extension run build:chrome
 ```
 

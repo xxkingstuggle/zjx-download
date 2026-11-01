@@ -3,7 +3,7 @@
 ## 开始与续跑
 
 - 先读 `PROGRESS.md` 的最新交付记录，再核对实际 Git、安装包和阻塞状态；历史记录不能当作当前验收。
-- 本机开发前读 `~/.codex/skills/machine-development-policy/SKILL.md`，并读取唯一机器政策 `~/.config/agent-governance/DEVELOPMENT_POLICY.md` 和 `MACHINE_STATE.md`。
+- 本机开发前读取唯一机器政策 `~/.config/agent-governance/DEVELOPMENT_POLICY.md` 和 `MACHINE_STATE.md`。
 - 正式源码在 `/Users/zjx/Developer/repos/zjx-download`；独立仓库为 `xxkingstuggle/zjx-download`，正式默认分支为 `main`，临时工作分支使用 `zjx/` 前缀。发布物放 `~/Developer/releases/zjx-download/<版本>/`；构建/诊断放 `~/Developer/scratch/codex/<任务>/`。
 
 ## 项目与边界
@@ -11,7 +11,7 @@
 - macOS 26+ 原生下载器及 Chrome MV3 扩展；SwiftUI/AppKit、Swift 6.2+、Apple 网络 API；Chrome 使用原生 JavaScript ES 模块。
 - App、Chrome、CLI通过同一核心和任务状态工作。名称/可执行文件/scheme为 `zjx-download`，Bundle ID为 `com.zjx.download`，图标原字节与署名许可保留。
 - App：`Sources/ZJXDownloadApp`；核心：`Sources/ZJXDownloadCore`；CLI/Native Host/网络shim分别在同名目录；扩展：`browser-extension/src`。
-- 当前设计/落点在 `docs/native-rebuild/design-and-coverage.md`，修复审核在 `repair-review-20261018.md`，用户验收在 `manual-test-checklist.md`。
+- 当前设计/落点在 `docs/native-rebuild/design-and-coverage.md`，修复审核在 `docs/native-rebuild/repair-review-20261018.md`，用户验收在 `docs/native-rebuild/manual-test-checklist.md`；文档现役/历史分界见 `docs/README.md`。
 - `docs/clean-room-rebuild/`、`docs/reverse-analysis-evidence/`是保留的原始规格/证据，不改写；其中旧阶段“不开发/不替换/不安装/必须全功能自测”限制已由用户后续任务书覆盖。
 
 ## 数据与执行

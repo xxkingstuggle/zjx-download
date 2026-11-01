@@ -1,5 +1,7 @@
 # Round 2 feature matrix (independent audit)
 
+> 历史记录：本文属于 2026-10-18 替换前的实现/审计阶段，保留用于追溯。文中的“当前”、测试结果和执行任务不适用于现役实现；现役入口见 [文档索引](README.md)，执行边界以根目录 AGENTS.md 为准。
+
 本矩阵不把静态代码存在当成通过。状态只使用：`UNAUDITED`、`IMPLEMENTED_UNVERIFIED`、`VERIFIED`、`FAILED`、`NOT_APPLICABLE_WITH_EVIDENCE`。
 
 证据目录：`.build/audit-round2/`（worker 证据）和 `.build/audit-round2-independent-20260914/`（本轮独立证据）。

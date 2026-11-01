@@ -9,8 +9,8 @@
   <key>CFBundleName</key><string>zjx-download</string>
   <key>CFBundleDisplayName</key><string>zjx-download</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>2.0.1</string>
-  <key>CFBundleVersion</key><string>20261018.2</string>
+  <key>CFBundleShortVersionString</key><string>2.0.2</string>
+  <key>CFBundleVersion</key><string>20261023.1</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSHumanReadableCopyright</key><string>Copyright © zjx-download contributors. Apache-2.0.</string>

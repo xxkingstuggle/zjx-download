@@ -1,5 +1,7 @@
 # zjx-download macOS native rewrite matrix
 
+> 历史记录：本文属于 2026-10-18 替换前的实现/审计阶段，保留用于追溯。文中的“当前”、测试结果和执行任务不适用于现役实现；现役入口见 [文档索引](README.md)，执行边界以根目录 AGENTS.md 为准。
+
 This matrix is the audit record for the Swift 6/macOS 26 rewrite. The source
 paths in the evidence column refer to the upstream tree at
 `afc57634b3c121c6415213242b2b600cccc6fd6e`; they are retained as evidence,

@@ -2,7 +2,44 @@
 
 Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx-download`，默认正式分支 `main`。2026-10-19用户澄清不能只交工作分支；下方早期“只同步任务分支、不改main”为当时处理记录，由本次指令更新。
 
-更新：2026-10-18 19:42（Asia/Shanghai）。当前安装 **2.0.1/build20261018.2**。5个Luna已全部交付，主代理已审核接缝、修正编译问题，完成干净路径 Release Universal App、双架构CLI和Chrome构建、签名与安装。未启动App/Chrome，功能与性能仍全部待用户测试。
+更新：2026-11-01（Asia/Shanghai；最新审计见下）。当前安装 **2.0.2/build20261023.1**。界面修复已构建、签名和安装；未启动 App，系统外观与布局待用户复验。源码保留在当前 main 工作区，尚未提交或推送。
+
+## 项目知识收尾（2026-11-01，Asia/Shanghai）
+
+本次 Git 收尾纳入 2.0.2 界面/外观与空列表实现、对应 A-068…A-070 验收材料和治理文档修订。现役与历史导航统一到 `docs/README.md`，未改写 clean-room/reverse-analysis 原始规格和证据。
+
+| 事实面 | 状态 | 本轮证据与边界 |
+| --- | --- | --- |
+| 代码 | verified-current | 当前源码 App 2.0.2、Chrome 2.0.1；核对共享核心、构建入口、桥接路由与回执。编译结果见下；不构成功能验收。 |
+| 运行态 | pending | 安装 App 2.0.2/build20261023.1，Universal、严格签名通过；主程序/Host/图标与发布包逐字节一致，ZIP 解压签名通过、发布 SHA256SUMS 全通过。Native Messaging manifest 指向本项目 Host 且仅允许配套扩展。没有启动/请求运行态；NWError 22、Chrome 交接和 A-001…A-070 仍待用户测试。 |
+| 文档 | changed-and-verified | 修正 README 的远端/本地分界、贡献与反馈入口、上游捐赠归属；旧审计加历史标识，旧 API 规格标为历史。35 个现役文档本地链接存在性通过；扩大检查后将旧矩阵的 5 个已移除源码链接改为明确历史引用，剩余 44 个本地链接均存在，手测与回填各 70 项。 |
+| 规则 | changed-and-verified | 删除已不存在的 machine-development-policy 技能死引用，直接读取唯一机器政策；修正修复/手测文件相对路径。未改全局规则、协作配置或执行禁令。 |
+| 记忆 | out-of-scope | Codex 生成记忆只读（generated-read-only）；未写任何平台记忆。 |
+| 工作区 | pending | 单一 worktree、无 stash；本地 main/远端 main 均 5ae0a975，2.0.2 与本次文档仍未提交/推送。旧分支和诊断现场保留。 |
+
+- 本轮实际构建：全新 scratch/DerivedData 下 Xcode Release `ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO`、`CODE_SIGNING_ALLOWED=NO` 返回 0 / BUILD SUCCEEDED；App 主程序为双架构，包内仅 ZJXDownloadCore.framework。SwiftPM `--product zjx-download-cli` 分别以 arm64、x86_64 和独立 scratch 构建，均返回 0 / Build complete；Chrome build:chrome 返回 0。新构建未签名、未安装；已安装包及发布 ZIP 的签名核对独立完成。未运行功能/UI/下载/故障/性能测试、swift test 或 npm test。构建保留 warning：AppIntents 元数据提取因无 AppIntents.framework 依赖被跳过（两个架构各一次）；未因此改源码或构建配置。
+- Git：实时远端 HEAD/default branch 为 main/5ae0a975；不向 upstream 写入，没有创建 tag、Release、PR 或安装事件。源码与文档目前仍需一次明确范围的 Git 交付，不能把本轮审计称为已经同步 GitHub。
+- 安全：机械枚举 134 个 tracked 文件（其中 48 个 Markdown）及工作区文档；tracked 私钥、GitHub token、AWS key 特征扫描未命中。这是有限模式检查，不证明不存在所有 secret。
+- 发布流程 warning：现存 macos-14/latest-stable、ad-hoc 签名 workflow 没有当前完整交付验证；本次不触发或重写发布流程。完整现役 OpenAPI 文件尚缺，已明确指向源码合同，避免沿用旧 plain OK 回执。
+- 清场预览：`.build/` 约 21 MiB（构建与历史审计现场）、`.agent-work/` 约 137 MiB（继承会话/诊断）、`browser-extension/dist/` 约 1.6 MiB（生成产物）；旧 scratch 中 status/hotfix/repair/ui 约 27 MiB。均需先判定仍有效证据及恢复位置，不能因体积或年龄直接删除。旧源码/旧 App/发布目录为恢复资产，不列删除候选。旧分支没有完成逐提交等价与使用者审计，不列可删。
+- 复核现场仍保留，等待用户确认后清场。新增构建、ZIP 核验与日志约 489 MiB，位于 `/Users/zjx/Developer/scratch/codex/zjx-download-neat-20261101/`。没有访问或迁移日用任务、设置、Keychain 和下载内容。
+
+## 界面与外观交付（2026-10-23）
+
+- 用户反馈：设置界面混乱、内容裁切，外观不跟随系统；截图底部仍有 `Network.NWError 22 — Invalid argument`。
+- 确认源码问题：`.system` 按主题名强制成深/浅色；720×620 固定设置页中大量未分组 Form 没有可用的滚动布局。修复为继承系统外观、强调色独立，并统一主窗口齿轮与菜单的原生 Settings 入口。
+- Luna 负责 SettingsViews：侧栏分为常规、下载、网络、集成、浏览器、旧数据、更新；可调整窗口尺寸，各页使用 grouped Form；声音路径和按钮分行。主代理审核确认原 43 个应用设置绑定、8 个浏览器绑定及数组绑定均保留，凭据、导入、更新和逐主机实现保持。
+- 主代理补齐：空任务列表/无匹配搜索提示、清除搜索不重置分类/队列；关于页使用同一外观偏好；版本更新为 2.0.2/build20261023.1。
+- 实际核对：全新 DerivedData 下 Xcode Release Universal `BUILD SUCCEEDED`；CLI arm64、x86_64 均 exit 0 并合并；Chrome 构建 exit 0（仍 2.0.1，无源码变更）。未运行 swift test/npm test、App/UI/下载/性能或浏览器测试。
+- 产物：`/Users/zjx/Developer/releases/zjx-download/2.0.2-ui-20261023/`；App/Host/Core/CLI 均 Universal，包内仅当前 ZJXDownloadCore.framework，Apple Development / Team ZNSTKHPLY3，严格签名核验通过，原图标 SHA-256 保持。
+- 安装：确认 App/Host/CLI 均无运行进程后替换 `/Applications/zjx-download.app`，未启动。原 2.0.1 完整保留于 `/Users/zjx/Developer/releases/zjx-download/archive/20261023-pre-ui-20261023.1/`，附恢复说明；见 INSTALL_LEDGER.md。没有读取、清理或迁移现用任务、设置、凭据和下载文件。
+- 验收：新增 A-068 设置滚动/尺寸、A-069 系统外观切换、A-070 空列表；本版 A-001…A-070 全部待用户测试，优先复验 A-047、A-068…A-070。NWError 22 未修复，Chrome 交接尚不能认定可用。
+- 协作：AGY 预检再次因 `unknown model/group relationship` 阻塞，无源码改动；用户随后授权 Codex 接手并明确要求 Luna 执行，未绕过门禁或改模型配置。
+- 保留：`/Users/zjx/Developer/scratch/codex/zjx-download-ui-20261023/` 的构建/签名包核对现场与日志，及前次状态盘点 scratch；按项目规则未清理构建诊断。AGY 失败任务记录保留，未接受失败结果。
+
+## 上次交付概要（历史）
+
+2026-10-18 19:42：安装 **2.0.1/build20261018.2**。5个Luna已全部交付，主代理已审核接缝、修正编译问题，完成干净路径 Release Universal App、双架构CLI和Chrome构建、签名与安装。未启动App/Chrome，功能与性能仍全部待用户测试。
 
 ## 本轮修复交付（2026-10-18）
 
