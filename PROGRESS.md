@@ -2,7 +2,7 @@
 
 Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx-download`，默认正式分支 `main`。2026-10-19用户澄清不能只交工作分支；下方早期“只同步任务分支、不改main”为当时处理记录，由本次指令更新。
 
-更新：2026-11-01（Asia/Shanghai；最新审计见下）。当前安装 **2.0.2/build20261023.1**。界面修复已构建、签名和安装；未启动 App，系统外观与布局待用户复验。源码保留在当前 main 工作区，尚未提交或推送。
+更新：2026-11-01（Asia/Shanghai；最新审计见下）。当前安装 **2.0.2/build20261023.1**。界面修复已构建、签名和安装；未启动 App，系统外观与布局待用户复验。源码与知识收尾于 2026-11-01 提交 `fbc865898e2772b5cb547d312f07c67158b39f93` 并推送至 `origin/main`。
 
 ## 项目知识收尾（2026-11-01，Asia/Shanghai）
 
@@ -15,14 +15,16 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 | 文档 | changed-and-verified | 修正 README 的远端/本地分界、贡献与反馈入口、上游捐赠归属；旧审计加历史标识，旧 API 规格标为历史。35 个现役文档本地链接存在性通过；扩大检查后将旧矩阵的 5 个已移除源码链接改为明确历史引用，剩余 44 个本地链接均存在，手测与回填各 70 项。 |
 | 规则 | changed-and-verified | 删除已不存在的 machine-development-policy 技能死引用，直接读取唯一机器政策；修正修复/手测文件相对路径。未改全局规则、协作配置或执行禁令。 |
 | 记忆 | out-of-scope | Codex 生成记忆只读（generated-read-only）；未写任何平台记忆。 |
-| 工作区 | pending | 单一 worktree、无 stash；本地 main/远端 main 均 5ae0a975，2.0.2 与本次文档仍未提交/推送。旧分支和诊断现场保留。 |
+| 工作区 | changed-and-verified | 单一 worktree、无 stash；2.0.2 代码提交 `fbc865898e2772b5cb547d312f07c67158b39f93` 与收尾文档均在 `origin/main`，跟踪工作区干净。旧分支和必要诊断现场保留。 |
 
 - 本轮实际构建：全新 scratch/DerivedData 下 Xcode Release `ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO`、`CODE_SIGNING_ALLOWED=NO` 返回 0 / BUILD SUCCEEDED；App 主程序为双架构，包内仅 ZJXDownloadCore.framework。SwiftPM `--product zjx-download-cli` 分别以 arm64、x86_64 和独立 scratch 构建，均返回 0 / Build complete；Chrome build:chrome 返回 0。新构建未签名、未安装；已安装包及发布 ZIP 的签名核对独立完成。未运行功能/UI/下载/故障/性能测试、swift test 或 npm test。构建保留 warning：AppIntents 元数据提取因无 AppIntents.framework 依赖被跳过（两个架构各一次）；未因此改源码或构建配置。
-- Git：实时远端 HEAD/default branch 为 main/5ae0a975；不向 upstream 写入，没有创建 tag、Release、PR 或安装事件。源码与文档目前仍需一次明确范围的 Git 交付，不能把本轮审计称为已经同步 GitHub。
+- Git/远端：2.0.2 源码提交 `fbc865898e2772b5cb547d312f07c67158b39f93`（`feat: deliver macOS 2.0.2 interface improvements`）和后续收尾文档均直接推送至 `origin/main`。最终 `git ls-remote` 与 GitHub API 核对远端默认 main 已包含当前收尾；`gh pr list --state all` 为空，改动直接进入默认主线，无 PR。未写 upstream。
+- 发布终态：已安装在本机（见安装登记）；没有创建 tag/Release。GitHub 最新 Release 为 `v0.2.2`（2026-09-14），当前版本 2.0.2 尚无对应 Release。CI workflow 未运行，功能、App UI、Chrome 接口和下载仍未 runtime 验收。
 - 安全：机械枚举 134 个 tracked 文件（其中 48 个 Markdown）及工作区文档；tracked 私钥、GitHub token、AWS key 特征扫描未命中。这是有限模式检查，不证明不存在所有 secret。
 - 发布流程 warning：现存 macos-14/latest-stable、ad-hoc 签名 workflow 没有当前完整交付验证；本次不触发或重写发布流程。完整现役 OpenAPI 文件尚缺，已明确指向源码合同，避免沿用旧 plain OK 回执。
-- 清场预览：`.build/` 约 21 MiB（构建与历史审计现场）、`.agent-work/` 约 137 MiB（继承会话/诊断）、`browser-extension/dist/` 约 1.6 MiB（生成产物）；旧 scratch 中 status/hotfix/repair/ui 约 27 MiB。均需先判定仍有效证据及恢复位置，不能因体积或年龄直接删除。旧源码/旧 App/发布目录为恢复资产，不列删除候选。旧分支没有完成逐提交等价与使用者审计，不列可删。
-- 复核现场仍保留，等待用户确认后清场。新增构建、ZIP 核验与日志约 489 MiB，位于 `/Users/zjx/Developer/scratch/codex/zjx-download-neat-20261101/`。没有访问或迁移日用任务、设置、Keychain 和下载内容。
+- 清理结果：删除本轮新建 scratch 中可重建的 Xcode DerivedData（267.9 MiB）、ZIP 解包核验副本（17.4 MiB）及 SwiftPM arm64/x86_64 scratch build 缓存（92.2/98.7 MiB），共约 476.2 MiB；保留 App/CLI/Chrome build 输出、校验日志（scratch 余 335,110 bytes）。
+- 保留候选：`.build/` 约 21 MiB 含历史隔离/性能验收资料及合成下载样本；`.agent-work/` 约 137 MiB 含历史/会话材料；`browser-extension/dist/` 约 1.6 MiB 是当前手测加载路径的生成包；旧 scratch 中 status/hotfix/repair/ui 约 27 MiB 含唯一诊断日志。以上均保留。旧源码/App/发布物为恢复资产；旧分支仍未逐提交等价审计，均未删除。
+- 本次被明确授权的清理已完成；以上历史现场继续保留。当前构建与校验日志在 `/Users/zjx/Developer/scratch/codex/zjx-download-neat-20261101/`。没有访问或迁移日用任务、设置、Keychain 和下载内容。
 
 ## 界面与外观交付（2026-10-23）
 

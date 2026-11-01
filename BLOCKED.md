@@ -18,8 +18,8 @@
 
 ## 交接与发布待办（2026-11-01）
 
-- 远端 `origin/main` 经 `git ls-remote --symref` 核对仍为 `5ae0a97546bcd4edc973e96bc9c7a95ebcb1a2cb`；2.0.2 源码、安装登记与本次文档改动仍在本地工作区，未提交/推送，不能称为 GitHub 已备份。保留继承改动，本次文档审计没有将前次源码交付纳入提交。
-- `.github/workflows/release.yml` 尚未验证满足当前 SDK/Swift、双架构 CLI、Chrome 和签名交付要求；详见 [文档入口](docs/README.md)。本轮未触发 CI、tag 或 Release；后续发布前需独立修订、验证。
+- 2.0.2 源码提交 `fbc865898e2772b5cb547d312f07c67158b39f93`、安装登记及后续治理文档均已直接推送到正式 `origin/main`。最终以 `git ls-remote` 和 GitHub API 核对，默认 main 包含本次完整收尾，本地干净；无 PR，改动直接进入主线。
+- GitHub `gh release list` 显示最新 Release 仍为 `v0.2.2`（2026-09-14），截至核查时没有 2.x Release；本轮未创建 tag 或 Release。`.github/workflows/release.yml` 尚未验证满足当前 SDK/Swift、双架构 CLI、Chrome 和签名交付要求；详见[文档入口](docs/README.md)。本轮未触发 CI、tag 或 Release；后续发布前需独立修订、验证。
 - 当前 API 的源码合同已在文档入口明确；根目录 REST-API.yml 仅为上游历史规格，完整现役 OpenAPI 描述尚未建立，不应据旧文件生成当前客户端。
 
 ## 已确认的产品边界
