@@ -4,11 +4,12 @@
 
 ## Current delivery
 
-- **2.0.3**, build **20261117.1**, is installed at `/Applications/zjx-download.app`. The Universal arm64/x86_64 bundle uses `com.zjx.download` and Apple Development signing.
+- **2.0.4**, build **20261117.2**, is installed at `/Applications/zjx-download.app`. The Universal arm64/x86_64 bundle uses `com.zjx.download` and Apple Development signing.
+- The local API supplies the loopback address and port once when starting its listener. This addresses the `NWError 22` startup error caused by passing the same port twice.
 - The main window uses macOS behind-window translucency with a native glass search and action bar. The task table retains its system background for contrast. The window uses a solid background when Reduce Transparency is enabled.
-- The App, App ZIP, Universal CLI and Chrome 2.0.1 package are under `/Users/zjx/Developer/releases/zjx-download/2.0.3/`. The unpacked extension uses ID `ikfafcgjoghicpkoolbofdaoonendhak`. See [the Chrome guide](docs/native-rebuild/chrome-install.md).
-- Build, signature, identity, icon and architecture checks passed. Appearance, power consumption and runtime behavior await user verification. See A-071 in [the manual checklist](docs/native-rebuild/manual-test-checklist.md) and the known `Network.NWError 22` in [BLOCKED.md](BLOCKED.md).
-- The previous 2.0.2 App is preserved at `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-glass-20261117.1/`. See [the installation record](INSTALL_LEDGER.md).
+- The App, App ZIP, Universal CLI and Chrome 2.0.1 package are under `/Users/zjx/Developer/releases/zjx-download/2.0.4/`. The unpacked extension uses ID `ikfafcgjoghicpkoolbofdaoonendhak`. See [the Chrome guide](docs/native-rebuild/chrome-install.md).
+- Build, signature, identity, icon and architecture checks passed. Local API startup and Chrome/CLI handoff await user verification under A-041 and A-042. Appearance remains covered by A-071. See [the manual checklist](docs/native-rebuild/manual-test-checklist.md).
+- The previous 2.0.3 App is preserved at `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-listener-20261117.2/`. See [the installation record](INSTALL_LEDGER.md).
 - Data remains under `~/Library/Application Support/zjx-download/`. Legacy `ABDownloadManager/state.json` is available for preview and explicit import, preserving the source. No data migration was performed during this update.
 - Current boundaries and acceptance status: [BLOCKED.md](BLOCKED.md).
 

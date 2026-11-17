@@ -126,7 +126,9 @@ public final class IntegrationServer {
         do {
             let parameters = NWParameters.tcp
             parameters.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host("127.0.0.1"), port: port)
-            let nextListener = try NWListener(using: parameters, on: port)
+            // The port is already part of requiredLocalEndpoint. Passing it again
+            // through the listener initializer asks Network.framework to override it.
+            let nextListener = try NWListener(using: parameters)
             let generation = listenerGeneration
             let requestSettings = RequestSettings(requiresKey: next.requiresKey, keyAccount: next.keyAccount, port: next.port)
             nextListener.newConnectionHandler = { [weak self] connection in
@@ -135,12 +137,12 @@ public final class IntegrationServer {
                 }
             }
             nextListener.stateUpdateHandler = { [weak self] state in
-                Task { @MainActor [weak self] in self?.listenerStateChanged(state, generation: generation, port: UInt16(next.port)) }
+                Task { @MainActor [weak self] in self?.listenerStateChanged(state, generation: generation, port: port.rawValue) }
             }
             listener = nextListener
             nextListener.start(queue: networkQueue)
         } catch {
-            lastError = error.localizedDescription
+            lastError = listenerErrorDescription(error, port: port.rawValue)
             configuration = nil
         }
     }
@@ -161,7 +163,7 @@ public final class IntegrationServer {
             listeningPort = port
             lastError = nil
         case .failed(let error):
-            lastError = error.localizedDescription
+            lastError = listenerErrorDescription(error, port: port)
             listeningPort = nil
             listenerGeneration &+= 1
             listener?.cancel()
@@ -171,6 +173,10 @@ public final class IntegrationServer {
         default:
             break
         }
+    }
+
+    private func listenerErrorDescription(_ error: any Error, port: UInt16) -> String {
+        "本机集成服务无法绑定 127.0.0.1:\(port)：\(error.localizedDescription)"
     }
 
     private func accept(_ connection: NWConnection, generation: UInt64, settings: RequestSettings) {

@@ -1,4 +1,4 @@
-# zjx-download 2.0.3 用户测试结果回填表
+# zjx-download 2.0.4 用户测试结果回填表
 
 请先按 manual-test-checklist.md 准备隔离测试数据，并逐项填写。用例操作和预期结果以手测表为准，不要用“App 已接收”代替“文件已完成”。
 

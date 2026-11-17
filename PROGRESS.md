@@ -2,6 +2,12 @@
 
 Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx-download`，默认正式分支 `main`。2026-10-19用户澄清不能只交工作分支；下方早期“只同步任务分支、不改main”为当时处理记录，由本次指令更新。
 
+## 2.0.4 本机接口启动修复（2026-11-17，Asia/Shanghai）
+
+- 2.0.3 在启动时由 `requiredLocalEndpoint` 与 `NWListener` 初始化器重复指定相同端口。系统日志 `Local endpoint has port set, cannot override to 15151` 与该进程无 TCP 监听相符。2.0.4 仅由 `requiredLocalEndpoint` 指定 `127.0.0.1` 和用户所设端口，失败信息增加绑定地址和端口。诊断日志在 `/Users/zjx/Developer/scratch/codex/zjx-download-listener-20261117/listener-before.log`。
+- 独立路径的 Universal App Release、双架构 CLI 和隔离 Chrome 2.0.1 构建完成。App、解包 ZIP 和安装包通过严格签名校验，产品身份和图标字节一致。产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.4/`。
+- **2.0.4/build20261117.2** 已安装。编译及产物核对完成，实际监听和 Chrome/CLI 交接待按 A-041、A-042 用户验收。详见 [INSTALL_LEDGER.md](INSTALL_LEDGER.md) 与[手测表](docs/native-rebuild/manual-test-checklist.md)。
+
 ## 2.0.3 主窗口外观交付（2026-11-17，Asia/Shanghai）
 
 - 已安装 **2.0.3/build20261117.1**。主窗口使用系统窗后透射材质、原生玻璃操作区和独立任务表区。启用「降低透明度」后使用实色窗底。设计见[功能落点](docs/native-rebuild/design-and-coverage.md)。

@@ -1,5 +1,11 @@
 # 安装记录
 
+## 2026-11-17 本机接口启动修复
+
+- `/Applications/zjx-download.app` 从 2.0.3/build20261117.1 更新为 2.0.4/build20261117.2。独立 DerivedData 的 Universal Release 签名包位于 `/Users/zjx/Developer/releases/zjx-download/2.0.4/zjx-download.app`。
+- 确认 App、Native Host 与 CLI 均退出后，归档原包并装入新包。新版尚未启动。
+- 旧包位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-listener-20261117.2/zjx-download.app`，同目录附恢复说明。App、解包 ZIP、安装包通过严格签名校验，签名团队、产品标识及原图标一致。
+
 ## 2026-11-17 主窗口外观更新
 
 - `/Applications/zjx-download.app` 从 2.0.2/build20261023.1 更新为 2.0.3/build20261117.1。Universal Release 构建来自独立 DerivedData，签名包位于 `/Users/zjx/Developer/releases/zjx-download/2.0.3/zjx-download.app`。

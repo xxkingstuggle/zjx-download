@@ -4,9 +4,9 @@
 
 ## 当前阻塞
 
-2.0.3/build20261117.1 已构建、签名并安装。主窗口透射、浅色与深色对比度和降低透明度效果待用户按 A-071 验收，功耗未测。
+2.0.4/build20261117.2 已构建、签名并安装。主窗口透射、浅色与深色对比度和降低透明度效果待用户按 A-071 验收，功耗未测。
 
-- 旧版退出时仍显示 `Network.NWError 22 — Invalid argument`。本机接口与 Chrome 交接待验收，错误原因仍未确认。
+- 2.0.3 的 `Network.NWError 22 — Invalid argument` 来自监听器初始化时重复指定端口。源码已修复，实际监听及 Chrome/CLI 交接待用户按 A-041、A-042 验收。
 - A-001…A-071 均待用户测试。本轮未启动新版或 Chrome，未执行功能、UI、下载或性能自测。
 - 2.0.2 修复了 `.system` 随主题强制切换深浅色及设置窗口无法完整滚动的问题，验收编号为 A-068…A-070。
 
@@ -41,10 +41,10 @@
 
 ## 交付核对
 
-- `/Applications/zjx-download.app` 为 `2.0.3/build20261117.1`，Universal x86_64/arm64，Apple Development / Team ZNSTKHPLY3，已通过严格签名校验。
+- `/Applications/zjx-download.app` 为 `2.0.4/build20261117.2`，Universal x86_64/arm64，Apple Development / Team ZNSTKHPLY3，已通过严格签名校验。
 - Chrome 扩展仍为 2.0.1。此轮在隔离目录构建，未修改日用 Chrome 或 Native Messaging 注册。
-- 产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.3/`。
-- 2.0.2 回退包位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-glass-20261117.1/zjx-download.app`，同目录含恢复说明。
+- 产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.4/`。
+- 2.0.3 回退包位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-listener-20261117.2/zjx-download.app`，同目录含恢复说明。
 - 旧源码：`/Users/zjx/Developer/releases/zjx-download/archive/20261018-040041-pre-clean-room/`。
 - 本轮只替换 App 包，没有访问、修改或迁移任务、设置、凭据及下载文件。安装 icns SHA-256 与旧包一致；更早的数据哈希记录只代表当时安装，不作为本次数据检查。
 
