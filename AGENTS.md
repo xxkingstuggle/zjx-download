@@ -3,7 +3,6 @@
 ## 开始与续跑
 
 - 先读 `PROGRESS.md` 的最新交付记录，再核对实际 Git、安装包和阻塞状态；历史记录不能当作当前验收。
-- 本机开发前读取唯一机器政策 `~/.config/agent-governance/DEVELOPMENT_POLICY.md` 和 `MACHINE_STATE.md`。
 - 正式源码在 `/Users/zjx/Developer/repos/zjx-download`；独立仓库为 `xxkingstuggle/zjx-download`，正式默认分支为 `main`，临时工作分支使用 `zjx/` 前缀。发布物放 `~/Developer/releases/zjx-download/<版本>/`；构建/诊断放 `~/Developer/scratch/codex/<任务>/`。
 
 ## 项目与边界
@@ -36,7 +35,7 @@ npm --prefix browser-extension run build:chrome
 
 - 保留继承改动，先审差异与secret；不提交缓存、构建包、日用数据、凭据或 `.agent-work/`。
 - 用户于2026-10-19明确要求独立项目正式交付；本次实现进入自有仓库 `origin/main`，不能只留在工作分支。保留Git历史，不向 `upstream` 推送，不force push，不自行创建Release。
-- 未获新授权不扩大Git发布范围。后续重要提交按用户授权和机器政策同步，禁止把未提交/未推送说成已备份。
+- 未获新授权不扩大Git发布范围。后续重要提交按用户授权和项目约定同步，禁止把未提交/未推送说成已备份。
 - 有活动子代理时等待完成并审交付；用户明确暂停则记录断点并停工。
 - 更新README、PROGRESS、BLOCKED及受影响说明；保留历史和待用户测试状态。安装变更登记 `INSTALL_LEDGER.md`。
 - 构建缓存与诊断现场先列清单，未获明确清理授权不删除；归档、发布包和用户数据不作缓存处理。

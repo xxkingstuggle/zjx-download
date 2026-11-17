@@ -13,7 +13,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 | 代码 | verified-current | 当前源码 App 2.0.2、Chrome 2.0.1；核对共享核心、构建入口、桥接路由与回执。编译结果见下；不构成功能验收。 |
 | 运行态 | pending | 安装 App 2.0.2/build20261023.1，Universal、严格签名通过；主程序/Host/图标与发布包逐字节一致，ZIP 解压签名通过、发布 SHA256SUMS 全通过。Native Messaging manifest 指向本项目 Host 且仅允许配套扩展。没有启动/请求运行态；NWError 22、Chrome 交接和 A-001…A-070 仍待用户测试。 |
 | 文档 | changed-and-verified | 修正 README 的远端/本地分界、贡献与反馈入口、上游捐赠归属；旧审计加历史标识，旧 API 规格标为历史。35 个现役文档本地链接存在性通过；扩大检查后将旧矩阵的 5 个已移除源码链接改为明确历史引用，剩余 44 个本地链接均存在，手测与回填各 70 项。 |
-| 规则 | changed-and-verified | 删除已不存在的 machine-development-policy 技能死引用，直接读取唯一机器政策；修正修复/手测文件相对路径。未改全局规则、协作配置或执行禁令。 |
+| 规则 | changed-and-verified | 修正修复/手测文件相对路径；2026-11-02 按用户要求移除已退役的全机政策依赖，项目约定、协作配置及执行禁令其余内容保留。 |
 | 记忆 | out-of-scope | Codex 生成记忆只读（generated-read-only）；未写任何平台记忆。 |
 | 工作区 | changed-and-verified | 单一 worktree、无 stash；2.0.2 代码提交 `fbc865898e2772b5cb547d312f07c67158b39f93` 与收尾文档均在 `origin/main`，跟踪工作区干净。旧分支和必要诊断现场保留。 |
 
