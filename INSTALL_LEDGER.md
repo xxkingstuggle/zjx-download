@@ -1,5 +1,12 @@
 # 安装记录
 
+## 2026-11-17 主窗口外观更新
+
+- `/Applications/zjx-download.app` 从 2.0.2/build20261023.1 更新为 2.0.3/build20261117.1。Universal Release 构建来自独立 DerivedData，签名包位于 `/Users/zjx/Developer/releases/zjx-download/2.0.3/zjx-download.app`。
+- 通过应用退出确认正常退出旧版。确认 App、Native Host 与 CLI 均已退出后，先归档旧包，再装入已验签的新包。新版尚未启动。
+- 旧包位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-glass-20261117.1/zjx-download.app`。主程序 SHA-256 与替换前一致，同目录含 `RECOVERY.md`。
+- App、解包 ZIP 和安装包均通过 `codesign --verify --deep --strict`。签名团队为 ZNSTKHPLY3，原图标字节一致。App、Host、Core 和 CLI 均为 arm64/x86_64。
+
 ## 2026-10-23 界面与系统外观修复
 
 - 目标：`/Applications/zjx-download.app`，2.0.1/build20261018.2 → 2.0.2/build20261023.1。

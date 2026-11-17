@@ -2,7 +2,13 @@
 
 Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx-download`，默认正式分支 `main`。2026-10-19用户澄清不能只交工作分支；下方早期“只同步任务分支、不改main”为当时处理记录，由本次指令更新。
 
-更新：2026-11-01（Asia/Shanghai；最新审计见下）。当前安装 **2.0.2/build20261023.1**。界面修复已构建、签名和安装；未启动 App，系统外观与布局待用户复验。源码与知识收尾于 2026-11-01 提交 `fbc865898e2772b5cb547d312f07c67158b39f93` 并推送至 `origin/main`。
+## 2.0.3 主窗口外观交付（2026-11-17，Asia/Shanghai）
+
+- 已安装 **2.0.3/build20261117.1**。主窗口使用系统窗后透射材质、原生玻璃操作区和独立任务表区。启用「降低透明度」后使用实色窗底。设计见[功能落点](docs/native-rebuild/design-and-coverage.md)。
+- Xcode 27 / macOS 27 SDK 下，独立 DerivedData 的 Universal Release 构建完成，最低系统仍为 macOS 26。SwiftPM CLI 两种架构以及 Chrome MV3 2.0.1 隔离构建均成功。构建日志保留 AppIntents 元数据提取跳过的提示。
+- App、Native Host、核心框架与 CLI 均为 arm64/x86_64。App 包内仅当前核心框架。App、解包 ZIP 与已安装包通过严格签名检查。签名团队、产品标识和原图标与旧包一致。
+- 旧版正常退出并归档后替换 `/Applications/zjx-download.app`。产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.3/`，构建现场位于 `/Users/zjx/Developer/scratch/codex/zjx-download-glass-20261117/`。详见[安装登记](INSTALL_LEDGER.md)。
+- A-001…A-071 待用户验收。此轮未启动新版，未测实际透射、功能和功耗。旧版退出时仍显示 `Network.NWError 22`，见 [BLOCKED.md](BLOCKED.md)。
 
 ## 项目知识收尾（2026-11-01，Asia/Shanghai）
 

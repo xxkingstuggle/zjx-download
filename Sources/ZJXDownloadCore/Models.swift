@@ -3,7 +3,7 @@ import Foundation
 public enum ProductIdentity {
     public static let name = "zjx-download"
     public static let bundleID = "com.zjx.download"
-    public static let version = "2.0.2"
+    public static let version = "2.0.3"
     public static let nativeHostName = "com.zjx.download"
     public static let defaultPort = 15151
 }

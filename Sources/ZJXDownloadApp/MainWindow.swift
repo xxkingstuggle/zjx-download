@@ -3,6 +3,7 @@ import AppKit
 import ZJXDownloadCore
 
 struct MainWindow: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.openWindow) private var openWindow
     @Bindable var coordinator: TaskCoordinator
     @Bindable var server: IntegrationServer
@@ -83,10 +84,17 @@ struct MainWindow: View {
                     SettingsLink { Image(systemName: "gearshape") }.help("设置")
                 }.padding(.horizontal)
                     .padding(.vertical, coordinator.data.settings.compactToolbar ? 6 : 14)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
                 if visibleTasks.isEmpty {
                     emptyTaskList
                 } else {
                     taskTable(visibleTasks)
+                        .clipShape(.rect(cornerRadius: 12))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 10)
                 }
                 HStack {
                     Text("\(visibleTasks.count) 项").foregroundStyle(.secondary)
@@ -101,6 +109,11 @@ struct MainWindow: View {
                 if let message = coordinator.lastActionMessage { Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2).padding(.horizontal) }
             }
             .navigationTitle("")
+            .background {
+                if !reduceTransparency {
+                    WindowGlassBackdrop().ignoresSafeArea().allowsHitTesting(false)
+                }
+            }
             .sheet(isPresented: $showingComposer) { DownloadComposer(coordinator: coordinator) }
             .sheet(isPresented: Binding(get: { editingTaskID != nil }, set: { if !$0 { editingTaskID = nil } })) {
                 if let editingTaskID { DownloadComposer(coordinator: coordinator, editingTaskID: editingTaskID) }
@@ -170,6 +183,7 @@ struct MainWindow: View {
                 NSApp.windows.first(where: { $0.title == ProductIdentity.name })?.makeKeyAndOrderFront(nil)
             }
         }
+        .containerBackground(reduceTransparency ? Color(nsColor: .windowBackgroundColor) : .clear, for: .window)
     }
 
     private var emptyTaskList: some View {
@@ -287,6 +301,26 @@ private enum TaskFilter: Hashable, Identifiable {
         case .category(let id): task.categoryID == id
         case .queue(let id): task.queueID == id
         }
+    }
+}
+
+private struct WindowGlassBackdrop: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = TransparentWindowEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
+
+private final class TransparentWindowEffectView: NSVisualEffectView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        window?.isOpaque = false
     }
 }
 

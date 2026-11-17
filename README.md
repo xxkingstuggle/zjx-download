@@ -4,16 +4,15 @@
 
 ## Current delivery
 
-- App: **2.0.2**, build **20261023.1**, installed at `/Applications/zjx-download.app`; bundle ID `com.zjx.download`, Universal x86_64/arm64. Apple Development signed; not notarized.
-- Chrome extension remains **2.0.1**, ID `ikfafcgjoghicpkoolbofdaoonendhak`; no extension source changes in this update. See [the Chrome guide](docs/native-rebuild/chrome-install.md).
-- Downloads: `/Users/zjx/Developer/releases/zjx-download/2.0.2-ui-20261023/`, including App, CLI, Chrome ZIP and unpacked extension.
-- This update lets system appearance control light/dark mode, separates accent colors from appearance, replaces the crowded settings sheet with a resizable settings window with sidebar navigation and grouped scrolling forms, and adds clear empty-list/search states. Earlier transfer and handoff repairs remain documented in [the repair notes](docs/native-rebuild/repair-release-20261018.md).
-- Universal App, both CLI architectures and Chrome builds succeeded. Strict signature, identity, icon and architecture checks passed. The executor has not launched the new App or run functional/UI tests. Recheck A-047 and A-068…A-070 in [the manual checklist](docs/native-rebuild/manual-test-checklist.md); all A-001…A-070 remain **待用户测试** on this build. The `Network.NWError 22` visible in the user's screenshot remains unresolved.
-- The old 2.0.1 App is preserved at `/Users/zjx/Developer/releases/zjx-download/archive/20261023-pre-ui-20261023.1/`. Installation is recorded in [INSTALL_LEDGER.md](INSTALL_LEDGER.md). Source commit `fbc86589` is pushed to `origin/main` (checked 2026-11-01); no 2.0.2 tag or Release was created. The App is installed locally, but runtime behavior and user acceptance remain pending.
+- **2.0.3**, build **20261117.1**, is installed at `/Applications/zjx-download.app`. The Universal arm64/x86_64 bundle uses `com.zjx.download` and Apple Development signing.
+- The main window uses macOS behind-window translucency with a native glass search and action bar. The task table retains its system background for contrast. The window uses a solid background when Reduce Transparency is enabled.
+- The App, App ZIP, Universal CLI and Chrome 2.0.1 package are under `/Users/zjx/Developer/releases/zjx-download/2.0.3/`. The unpacked extension uses ID `ikfafcgjoghicpkoolbofdaoonendhak`. See [the Chrome guide](docs/native-rebuild/chrome-install.md).
+- Build, signature, identity, icon and architecture checks passed. Appearance, power consumption and runtime behavior await user verification. See A-071 in [the manual checklist](docs/native-rebuild/manual-test-checklist.md) and the known `Network.NWError 22` in [BLOCKED.md](BLOCKED.md).
+- The previous 2.0.2 App is preserved at `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-glass-20261117.1/`. See [the installation record](INSTALL_LEDGER.md).
 - Data remains under `~/Library/Application Support/zjx-download/`. Legacy `ABDownloadManager/state.json` is available for preview and explicit import, preserving the source. No data migration was performed during this update.
 - Current boundaries and acceptance status: [BLOCKED.md](BLOCKED.md).
 
-Source repository: [xxkingstuggle/zjx-download](https://github.com/xxkingstuggle/zjx-download), an independent private repository whose default branch is `main`. Remote `main` contains the 2.0.2 implementation at `fbc86589` (checked 2026-11-01). The latest GitHub Release is still `v0.2.2`; there is no 2.x Release. Project workflow and data boundaries: [AGENTS.md](AGENTS.md).
+The independent private source repository uses `main` as its default branch. [xxkingstuggle/zjx-download](https://github.com/xxkingstuggle/zjx-download) · [Project instructions](AGENTS.md)
 
 Documentation map, historical evidence and API contract boundaries: [docs/README.md](docs/README.md). The latest delivery audit is recorded in [PROGRESS.md](PROGRESS.md).
 

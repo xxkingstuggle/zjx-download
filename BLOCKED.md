@@ -1,14 +1,14 @@
 # 阻塞与交付边界
 
-更新：2026-11-01（文档与交付状态审计；没有新增功能验收）。
+更新于 2026-11-17。
 
 ## 当前阻塞
 
-2.0.2/build20261023.1 的界面修复已构建、签名并安装；系统切换和实际布局效果待用户复验。
+2.0.3/build20261117.1 已构建、签名并安装。主窗口透射、浅色与深色对比度和降低透明度效果待用户按 A-071 验收，功耗未测。
 
-- 用户截图仍显示 `Network.NWError 22 — Invalid argument`，本机接口/Chrome 交接不能视为可用；本轮没有修改 IntegrationServer，也没有运行接口或浏览器测试，原因仍未确认。
-- 用户报告 2.0.1 设置布局混乱、外观不跟随系统。源码确认 `.system` 被主题名强制为深浅色、设置固定尺寸且表单未分组滚动；本轮修复这些源码问题，新增 A-068…A-070。构建通过不等于界面复验通过。
-- 2.0.2 的 A-001…A-070 均待用户测试。执行者没有启动 App/Chrome，没有运行功能/UI/下载/性能测试。
+- 旧版退出时仍显示 `Network.NWError 22 — Invalid argument`。本机接口与 Chrome 交接待验收，错误原因仍未确认。
+- A-001…A-071 均待用户测试。本轮未启动新版或 Chrome，未执行功能、UI、下载或性能自测。
+- 2.0.2 修复了 `.system` 随主题强制切换深浅色及设置窗口无法完整滚动的问题，验收编号为 A-068…A-070。
 
 以下为上一轮 2.0.1 修复的验收记录：
 
@@ -41,10 +41,10 @@
 
 ## 交付核对
 
-- App：`/Applications/zjx-download.app`，`com.zjx.download`，`2.0.2/build20261023.1`，Universal x86_64/arm64，Apple Development / Team ZNSTKHPLY3；严格签名通过，未公证。未启动。
-- Chrome：2.0.1，host仍为`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.zjx.download.json`，仅允许`ikfafcgjoghicpkoolbofdaoonendhak`，未操作日用Chrome；用户需重新加载扩展。
-- 发布：`/Users/zjx/Developer/releases/zjx-download/2.0.2-ui-20261023/`；旧发布目录保留。
-- 上一安装包：`/Users/zjx/Developer/releases/zjx-download/archive/20261023-pre-ui-20261023.1/zjx-download.app`（2.0.1）；附 RECOVERY.md。更早回退包仍保留。
+- `/Applications/zjx-download.app` 为 `2.0.3/build20261117.1`，Universal x86_64/arm64，Apple Development / Team ZNSTKHPLY3，已通过严格签名校验。
+- Chrome 扩展仍为 2.0.1。此轮在隔离目录构建，未修改日用 Chrome 或 Native Messaging 注册。
+- 产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.3/`。
+- 2.0.2 回退包位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-glass-20261117.1/zjx-download.app`，同目录含恢复说明。
 - 旧源码：`/Users/zjx/Developer/releases/zjx-download/archive/20261018-040041-pre-clean-room/`。
 - 本轮只替换 App 包，没有访问、修改或迁移任务、设置、凭据及下载文件。安装 icns SHA-256 与旧包一致；更早的数据哈希记录只代表当时安装，不作为本次数据检查。
 

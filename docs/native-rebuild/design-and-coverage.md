@@ -1,6 +1,6 @@
 # 新实现设计与功能落点
 
-更新时间：2026-10-18（按当前源码检查修订实现状态）
+更新时间：2026-11-17（补充主窗口外观）
 
 ## 设计决策
 
@@ -11,6 +11,7 @@
 - 队列由独立调度器控制；UI/REST/Native Messaging/CLI 的增删改查和开始/暂停均落到共享任务状态。
 - Chrome MV3 只用配套扩展与本项目 Native Messaging host；host 通过应用前台/后台 API 交接，应用不创建独立常驻守护进程。
 - 系统能力通过 macOS API：原生目录选择、Keychain、菜单栏、通知、登录项、文件打开、睡眠断言和摘要算法。当前 App 未启用 App Sandbox；下载位置保存为普通 POSIX 路径，由 macOS 文件访问权限和实际文件操作决定可用性，不保存 security-scoped bookmark。
+- 主窗口以 AppKit `NSVisualEffectView` 的 `underWindowBackground` 与 `behindWindow` 显示窗后背景，搜索与操作区采用 SwiftUI 原生玻璃，任务表保留系统表格底色。系统启用「降低透明度」时使用实色窗底。见 A-071。
 - HTTP HLS 仅承诺有限、未加密、TS media playlist。Chrome 可以解析 master 清单并向 App 发送选定 media URL；DRM、独立音轨和直播录制保持明确不支持。
 - 原项目源文件、构建缓存及内部类型不作为新实现依赖。兼容读取标准 JSON/Chrome wire 与历史数据格式不等于复用旧业务代码。
 
