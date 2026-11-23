@@ -334,6 +334,7 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
     private var statusEventRelay: TaskStatusEventRelay?
     private var approvedTermination = false
     private var terminatingDuplicate = false
+    private var headlessQuitRequested = false
     private var quitObserver: NSObjectProtocol?
 
     func configure(coordinator: TaskCoordinator, speedModeMonitor: GlobalSpeedModeMonitor,
@@ -365,8 +366,11 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard coordinator.startupError == nil else { return }
-        quitObserver = NotificationCenter.default.addObserver(forName: .zjxQuitRequested, object: nil, queue: .main) { _ in
-            Task { @MainActor in NSApp?.terminate(nil) }
+        quitObserver = NotificationCenter.default.addObserver(forName: .zjxQuitRequested, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                self?.headlessQuitRequested = true
+                NSApp?.terminate(nil)
+            }
         }
         statusEventRelay?.start()
         speedModeMonitor?.start()
@@ -383,16 +387,19 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if approvedTermination || terminatingDuplicate { return .terminateNow }
-        guard let coordinator else { return .terminateNow }
-        let alert = NSAlert()
-        alert.messageText = coordinator.hasOutstandingTransfers ? "退出 zjx-download 并暂停活动任务？" : "退出 zjx-download？"
-        alert.informativeText = coordinator.hasOutstandingTransfers
-            ? "活动任务会保存可用的续传信息。退出前最多等待 30 秒，保存失败时应用会保持打开。"
-            : ""
-        alert.addButton(withTitle: coordinator.hasOutstandingTransfers ? "暂停并退出" : "退出")
-        alert.addButton(withTitle: "取消")
-        guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
-        guard coordinator.hasOutstandingTransfers else { return .terminateNow }
+        guard let coordinator, coordinator.hasOutstandingTransfers else {
+            headlessQuitRequested = false
+            return .terminateNow
+        }
+        if !headlessQuitRequested {
+            let alert = NSAlert()
+            alert.messageText = "退出 zjx-download 并暂停活动任务？"
+            alert.informativeText = "活动任务会保存可用的续传信息。退出前最多等待 30 秒，保存失败时应用会保持打开。"
+            alert.addButton(withTitle: "暂停并退出")
+            alert.addButton(withTitle: "取消")
+            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        }
+        headlessQuitRequested = false
         coordinator.prepareForTermination { canTerminate in
             self.approvedTermination = canTerminate
             sender.reply(toApplicationShouldTerminate: canTerminate)
