@@ -1,0 +1,124 @@
+import CryptoKit
+import Foundation
+import Network
+import XCTest
+@testable import ZJXDownloadCore
+
+final class ZJXDownloadCoreTests: XCTestCase {
+    private var tempDirectory: URL!
+
+    override func setUpWithError() throws {
+        tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("zjx-download-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        if let tempDirectory, FileManager.default.fileExists(atPath: tempDirectory.path) {
+            try? FileManager.default.trashItem(at: tempDirectory, resultingItemURL: nil)
+        }
+    }
+
+    func testChecksumServiceComputesDigests() throws {
+        let file = tempDirectory.appendingPathComponent("payload.bin")
+        let payload = Data("zjx-download-verification-payload".utf8)
+        try payload.write(to: file)
+
+        let expectedSHA256 = SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(try ChecksumService.calculate(file: file, algorithm: "SHA-256"), expectedSHA256)
+        XCTAssertEqual(try ChecksumService.calculate(file: file, algorithm: "CRC-32").count, 8)
+    }
+
+    @MainActor
+    func testStateStorePersistenceAndReadOnlyRecovery() throws {
+        let storeDir = tempDirectory.appendingPathComponent("store", isDirectory: true)
+        let store = try StateStore(directory: storeDir)
+        var data = try store.load()
+        XCTAssertEqual(data.schemaVersion, 2)
+        XCTAssertEqual(data.queues.first?.name, "Main")
+
+        let record = DownloadRecord(
+            id: 1,
+            kind: .http,
+            sourceURL: "https://example.com/archive.zip",
+            displayName: "archive.zip",
+            destinationDirectory: tempDirectory.path,
+            status: .paused,
+            totalBytes: 1024,
+            receivedBytes: 512
+        )
+        data.tasks = [record]
+        data.nextTaskID = 2
+        try store.save(data)
+
+        let recovery = StateStore.readOnlyRecovery(directory: storeDir)
+        let loaded = try recovery.load()
+        XCTAssertEqual(loaded.tasks.count, 1)
+        XCTAssertEqual(loaded.tasks.first?.displayName, "archive.zip")
+        XCTAssertThrowsError(try recovery.save(loaded))
+    }
+
+    @MainActor
+    func testQueueSchedulerFiresStartAndStopEvents() {
+        var started: [Int64] = []
+        var stopped: [Int64] = []
+        let scheduler = QueueScheduler()
+        scheduler.onStartQueue = { started.append($0) }
+        scheduler.onStopQueue = { stopped.append($0) }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        let startDate = calendar.date(from: DateComponents(year: 2026, month: 11, day: 23, hour: 9, minute: 30))!
+        let stopDate = calendar.date(from: DateComponents(year: 2026, month: 11, day: 23, hour: 10, minute: 0))!
+
+        let schedule = QueueSchedule(
+            days: [1],
+            startEnabled: true,
+            startHour: 9,
+            startMinute: 30,
+            stopEnabled: true,
+            stopHour: 10,
+            stopMinute: 0,
+            stopWhenEmpty: true
+        )
+        var queue = QueueRecord(id: 0, name: "Main", concurrency: 2, isRunning: false, schedule: schedule, order: 0)
+        scheduler.tick(queues: [queue], now: startDate, calendar: calendar)
+        XCTAssertEqual(started, [0])
+
+        queue.isRunning = true
+        scheduler.tick(queues: [queue], now: stopDate, calendar: calendar)
+        XCTAssertEqual(stopped, [0])
+    }
+
+    func testNetworkConfigurationStripsCrossOriginCredentials() throws {
+        let originA = try XCTUnwrap(URL(string: "https://cdn.example.com/file.bin"))
+        let originB = try XCTUnwrap(URL(string: "https://mirror.example.org/file.bin"))
+        let headers = [
+            "Authorization": "Bearer secret-token",
+            "Cookie": "sid=123",
+            "User-Agent": "zjx-test"
+        ]
+        let stripped = NetworkConfiguration.removingSensitiveHeaders(headers, from: originA, to: originB)
+        XCTAssertNil(stripped["Authorization"])
+        XCTAssertNil(stripped["Cookie"])
+        XCTAssertEqual(stripped["User-Agent"], "zjx-test")
+    }
+
+    func testExchangeCodecAndCurlImportRoundTrip() throws {
+        let record = DownloadRecord(
+            id: 7,
+            kind: .http,
+            sourceURL: "https://example.com/pkg.dmg",
+            pageURL: "https://example.com/releases",
+            displayName: "pkg.dmg",
+            destinationDirectory: tempDirectory.path,
+            status: .queued,
+            requestHeaders: ["X-Custom": "value-1"]
+        )
+        let curl = ExchangeCodec.curl(for: record)
+        let imported = InputImport.parse(curl)
+        XCTAssertEqual(imported.items.count, 1)
+        XCTAssertEqual(imported.items.first?.url.absoluteString, "https://example.com/pkg.dmg")
+        XCTAssertEqual(imported.items.first?.headers["X-Custom"], "value-1")
+    }
+}

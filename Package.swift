@@ -14,5 +14,6 @@ let package = Package(
         .target(name: "ZJXDownloadCore", dependencies: ["ZJXDownloadNetworkShim"], path: "Sources/ZJXDownloadCore", swiftSettings: [.swiftLanguageMode(.v6)]),
         .executableTarget(name: "ZJXDownloadCLI", dependencies: ["ZJXDownloadCore"], path: "Sources/ZJXDownloadCLI", swiftSettings: [.swiftLanguageMode(.v6)]),
         .executableTarget(name: "ZJXDownloadNativeHost", dependencies: ["ZJXDownloadCore"], path: "Sources/ZJXDownloadNativeHost", swiftSettings: [.swiftLanguageMode(.v6)]),
+        .testTarget(name: "ZJXDownloadCoreTests", dependencies: ["ZJXDownloadCore"], path: "Tests/ZJXDownloadCoreTests", swiftSettings: [.swiftLanguageMode(.v6)]),
     ]
 )
