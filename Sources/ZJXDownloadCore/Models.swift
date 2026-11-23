@@ -357,9 +357,18 @@ public struct AppSettings: Codable, Hashable, Sendable {
     public var updateManifestURL: String
     public var lastUpdateCheck: Date?
 
+    public static var macDefaultDownloadsDirectory: String {
+        (FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads", isDirectory: true)).path
+    }
+
+    public static var legacySubdirectoryDefault: String {
+        URL(fileURLWithPath: macDefaultDownloadsDirectory, isDirectory: true)
+            .appendingPathComponent("zjx-download", isDirectory: true).path
+    }
+
     public init() {
-        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
-        defaultDownloadDirectory = downloads.appendingPathComponent("zjx-download", isDirectory: true).path
+        defaultDownloadDirectory = Self.macDefaultDownloadsDirectory
         appearance = .system; theme = "Dark"; language = "system"; fontName = nil
         sizeUnit = "binary"; speedUnit = "bytes"; averageSpeedEnabled = true; scalePercent = 100
         autoCategorizeNewDownloads = true
@@ -385,7 +394,8 @@ public struct AppSettings: Codable, Hashable, Sendable {
     public init(from decoder: Decoder) throws {
         self.init()
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        defaultDownloadDirectory = try c.decodeIfPresent(String.self, forKey: .defaultDownloadDirectory) ?? defaultDownloadDirectory
+        let decodedDir = try c.decodeIfPresent(String.self, forKey: .defaultDownloadDirectory) ?? defaultDownloadDirectory
+        defaultDownloadDirectory = decodedDir == Self.legacySubdirectoryDefault ? Self.macDefaultDownloadsDirectory : decodedDir
         appearance = try c.decodeIfPresent(AppearanceChoice.self, forKey: .appearance) ?? appearance
         theme = try c.decodeIfPresent(String.self, forKey: .theme) ?? theme
         language = try c.decodeIfPresent(String.self, forKey: .language) ?? language
@@ -543,7 +553,7 @@ public struct AppData: Codable, Sendable {
         return values.enumerated().map { index, value in
             CategoryRecord(id: Int64(index + 1), name: value.0, symbol: value.1,
                            extensions: extensions[index].split(separator: " ").map(String.init),
-                           destinationDirectory: URL(fileURLWithPath: root).appendingPathComponent(value.0, isDirectory: true).path,
+                           destinationDirectory: nil,
                            order: index)
         }
     }

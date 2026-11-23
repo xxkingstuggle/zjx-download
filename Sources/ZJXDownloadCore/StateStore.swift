@@ -106,8 +106,15 @@ public final class StateStore {
     public func load() throws -> AppData {
         guard FileManager.default.fileExists(atPath: stateURL.path) else { return AppData() }
         let data = try Data(contentsOf: stateURL)
-        let value = try decoder.decode(AppData.self, from: data)
+        var value = try decoder.decode(AppData.self, from: data)
         guard value.schemaVersion == 2 else { throw CocoaError(.fileReadCorruptFile) }
+        let legacyPrefix = AppSettings.legacySubdirectoryDefault + "/"
+        for index in value.categories.indices {
+            if let dir = value.categories[index].destinationDirectory,
+               dir == AppSettings.legacySubdirectoryDefault || dir.hasPrefix(legacyPrefix) {
+                value.categories[index].destinationDirectory = nil
+            }
+        }
         return value
     }
 

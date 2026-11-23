@@ -33,7 +33,15 @@ struct DownloadComposer: View {
                 TextField("下载地址", text: $address).textFieldStyle(.roundedBorder)
                 TextField("来源页面（可选）", text: $page).textFieldStyle(.roundedBorder)
                 TextField("文件名（自动识别）", text: $name).textFieldStyle(.roundedBorder)
-                HStack { TextField("保存文件夹", text: $folder).textFieldStyle(.roundedBorder); Button("选择…", action: chooseFolder) }
+                LabeledContent("下载目录") {
+                    HStack(spacing: 8) {
+                        TextField("默认保存目录", text: $folder).textFieldStyle(.roundedBorder)
+                        Button("选择下载目录…", action: chooseFolder)
+                        if folder != AppSettings.macDefaultDownloadsDirectory {
+                            Button("默认 Downloads") { folder = AppSettings.macDefaultDownloadsDirectory }
+                        }
+                    }
+                }
                 TextField("请求头（每行 名称: 值）", text: $headersText, axis: .vertical).lineLimit(3...7).textFieldStyle(.roundedBorder)
                 if editingTaskID != nil { Toggle("清除钥匙串中保存的认证信息", isOn: $clearStoredCredentials) }
                 TextField("期望摘要（可选，如 SHA-256:…）", text: $checksum).textFieldStyle(.roundedBorder).disabled(editingTaskID != nil)
@@ -59,6 +67,8 @@ struct DownloadComposer: View {
 
     private func chooseFolder() {
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        if !folder.isEmpty { panel.directoryURL = URL(fileURLWithPath: folder, isDirectory: true) }
         panel.prompt = "选择保存位置"
         if panel.runModal() == .OK, let url = panel.url { folder = url.path }
     }
@@ -146,6 +156,7 @@ struct BatchImportView: View {
     @Bindable var coordinator: TaskCoordinator
     @State private var text = ""
     @State private var resultText = ""
+    @State private var folder = ""
     @State private var queueID: Int64? = 0
     @State private var startNow = false
     @State private var items: [ImportedDownload] = []
@@ -196,6 +207,14 @@ struct BatchImportView: View {
             }.overlay {
                 if items.isEmpty { ContentUnavailableView("尚无预览项目", systemImage: "list.bullet.rectangle") }
             }
+            HStack(spacing: 8) {
+                Text("下载目录：").foregroundStyle(.secondary)
+                TextField("默认保存目录", text: $folder).textFieldStyle(.roundedBorder)
+                Button("选择下载目录…") { chooseBatchFolder() }
+                if folder != AppSettings.macDefaultDownloadsDirectory {
+                    Button("默认 Downloads") { folder = AppSettings.macDefaultDownloadsDirectory }
+                }
+            }
             HStack {
                 Picker("队列", selection: $queueID) { ForEach(coordinator.data.queues) { Text($0.name).tag(Optional($0.id)) } }
                 Toggle("添加后开始", isOn: $startNow)
@@ -207,10 +226,22 @@ struct BatchImportView: View {
             if !resultText.isEmpty { ScrollView { Text(resultText).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }.frame(maxHeight: 100) }
         }.padding(20).frame(width: 820, height: 720)
         .onAppear {
+            if folder.isEmpty { folder = coordinator.data.settings.defaultDownloadDirectory }
             if text.isEmpty { text = NSPasteboard.general.string(forType: .string) ?? "" }
         }
         .onDisappear { submissionWork?.cancel(); submissionWork = nil }
         .onReceive(NotificationCenter.default.publisher(for: .importTextRequested)) { note in if let text = note.object as? String { self.text = text } }
+    }
+
+    private func chooseBatchFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        if !folder.isEmpty { panel.directoryURL = URL(fileURLWithPath: folder, isDirectory: true) }
+        panel.prompt = "选择保存位置"
+        if panel.runModal() == .OK, let url = panel.url { folder = url.path }
     }
 
     private func parseText() {
@@ -238,11 +269,14 @@ struct BatchImportView: View {
     }
 
     private func addSelected() {
+        let destination = folder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil : URL(fileURLWithPath: folder, isDirectory: true)
         let requests = selected.sorted().compactMap { index -> CreateDownloadRequest? in
             guard items.indices.contains(index) else { return nil }
             let item = items[index]
             return CreateDownloadRequest(sourceURL: item.url, pageURL: item.downloadPage,
-                                         displayName: item.suggestedName, headers: item.headers,
+                                         displayName: item.suggestedName, destinationDirectory: destination,
+                                         headers: item.headers,
                                          queueID: queueID, startImmediately: startNow)
         }
         guard !requests.isEmpty else { return }

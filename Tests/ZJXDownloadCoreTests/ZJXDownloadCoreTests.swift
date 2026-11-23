@@ -291,4 +291,34 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(recoveredSingle.status, .paused)
         XCTAssertEqual(recoveredSingle.receivedBytes, 0)
     }
+
+    @MainActor
+    func testUniqueNameKeepsOriginalFileNameWhenNoConflictExists() throws {
+        let folder = tempDirectory.appendingPathComponent("unique-name-test", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        XCTAssertEqual(TaskCoordinator.uniqueName("archive.tar.gz", in: folder, tasks: []), "archive.tar.gz")
+
+        let existingFile = folder.appendingPathComponent("archive.tar.gz")
+        try Data("occupied".utf8).write(to: existingFile)
+        XCTAssertEqual(TaskCoordinator.uniqueName("archive.tar.gz", in: folder, tasks: []), "archive.tar_1.gz")
+    }
+
+    @MainActor
+    func testDefaultDownloadDirectoryUsesMacDownloadsAndMigratesLegacySubfolder() throws {
+        let settings = AppSettings()
+        XCTAssertEqual(settings.defaultDownloadDirectory, AppSettings.macDefaultDownloadsDirectory)
+        XCTAssertTrue(AppData().categories.allSatisfy { $0.destinationDirectory == nil })
+
+        let storeDir = tempDirectory.appendingPathComponent("legacy-dir-store", isDirectory: true)
+        let store = try StateStore(directory: storeDir)
+        var legacyData = AppData()
+        legacyData.settings.defaultDownloadDirectory = AppSettings.legacySubdirectoryDefault
+        legacyData.categories[0].destinationDirectory = AppSettings.legacySubdirectoryDefault + "/压缩包"
+        try store.save(legacyData)
+
+        let loaded = try store.load()
+        XCTAssertEqual(loaded.settings.defaultDownloadDirectory, AppSettings.macDefaultDownloadsDirectory)
+        XCTAssertNil(loaded.categories[0].destinationDirectory)
+    }
 }

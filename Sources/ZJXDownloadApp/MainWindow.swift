@@ -80,6 +80,7 @@ struct MainWindow: View {
                     Text(filter.title).font(.title2.weight(.semibold))
                     Spacer()
                     TextField("搜索名称或网址", text: $query).textFieldStyle(.roundedBorder).frame(maxWidth: 280)
+                    Button { showingComposer = true } label: { Label("新建下载", systemImage: "plus") }.buttonStyle(.borderedProminent)
                     Button { showingImporter = true } label: { Label("批量导入", systemImage: "text.badge.plus") }
                     SettingsLink { Image(systemName: "gearshape") }.help("设置")
                 }.padding(.horizontal)
@@ -100,6 +101,14 @@ struct MainWindow: View {
                     Text("\(visibleTasks.count) 项").foregroundStyle(.secondary)
                     if let port = server.listeningPort { Label("本机接口 127.0.0.1:\(port)", systemImage: "point.3.connected.trianglepath.dotted").font(.caption).foregroundStyle(.secondary) }
                     else if let lastError = server.lastError { Label(lastError, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
+                    Divider().frame(height: 14)
+                    Label(coordinator.data.settings.defaultDownloadDirectory, systemImage: "folder")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        .help("当前默认下载目录：\(coordinator.data.settings.defaultDownloadDirectory)")
+                    Button("选择下载目录…") { chooseDefaultDownloadDirectory() }.controlSize(.small)
+                    Button("打开目录") {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: coordinator.data.settings.defaultDownloadDirectory, isDirectory: true))
+                    }.controlSize(.small)
                     Spacer()
                     Button("开始") { coordinator.start(Array(coordinator.selectedTaskIDs)) }.disabled(coordinator.selectedTaskIDs.isEmpty)
                     Button("暂停") { coordinator.pause(Array(coordinator.selectedTaskIDs)) }.disabled(coordinator.selectedTaskIDs.isEmpty)
@@ -251,6 +260,19 @@ struct MainWindow: View {
     private func openTaskDetail(_ id: Int64) {
         openWindow(id: "task-detail", value: id)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func chooseDefaultDownloadDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(fileURLWithPath: coordinator.data.settings.defaultDownloadDirectory, isDirectory: true)
+        panel.prompt = "设为默认下载目录"
+        if panel.runModal() == .OK, let url = panel.url {
+            coordinator.updateSettings { $0.defaultDownloadDirectory = url.path }
+        }
     }
 
     private func progressText(_ task: DownloadRecord) -> String {

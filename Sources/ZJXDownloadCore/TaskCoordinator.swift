@@ -2303,8 +2303,12 @@ public final class TaskCoordinator {
         return name
     }
 
-    private static func uniqueName(_ name: String, in folder: URL, tasks: [DownloadRecord]) -> String {
+    internal static func uniqueName(_ name: String, in folder: URL, tasks: [DownloadRecord]) -> String {
         let occupied = Set(tasks.map { $0.outputURL.standardizedFileURL.path })
+        let initialPath = folder.appendingPathComponent(name).standardizedFileURL.path
+        if !occupied.contains(initialPath) && !FileManager.default.fileExists(atPath: initialPath) {
+            return name
+        }
         let base = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
         var suffix = 1
