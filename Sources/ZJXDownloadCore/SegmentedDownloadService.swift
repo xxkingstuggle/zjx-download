@@ -169,10 +169,13 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
     private var progressDrainTasks: [Int64: (generation: UInt64, task: Task<Void, Never>)] = [:]
     private nonisolated let sessionPolicies = SegmentedSessionPolicyStore()
     private nonisolated let progressMailbox = SegmentedProgressMailbox()
+    private nonisolated let baseDirectory: URL
     private var rateSamples: [Int64: (Date, Int64)] = [:]
     private let delegateQueue: OperationQueue
 
-    public override init() {
+    public init(baseDirectory: URL? = nil) {
+        self.baseDirectory = baseDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(ProductIdentity.name, isDirectory: true)
         delegateQueue = OperationQueue()
         delegateQueue.name = "com.zjx.download.range-delegate"
         delegateQueue.maxConcurrentOperationCount = 1
@@ -237,7 +240,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         if let active = transfers[task.id] {
             cancel(taskID: task.id, generation: active.generation, deletePartial: false)
         }
-        let directory = Self.checkpointDirectory(task.id)
+        let directory = checkpointDirectory(task.id)
         while let cleanup = cleanupTasks.removeValue(forKey: task.id) {
             await cleanup.value
             guard requestedGenerations[task.id] == generation else { throw CancellationError() }
@@ -337,20 +340,20 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
             let oldMerge = mergeTasks[taskID].flatMap { generation == nil || $0.generation == generation ? $0 : nil }
             oldMerge?.task.cancel()
             if let pending {
-                let directory = Self.checkpointDirectory(taskID)
+                let directory = checkpointDirectory(taskID)
                 registerCleanup(taskID: taskID) {
                     _ = try? await pending.task.value
                     if let oldMerge { await oldMerge.task.value }
                     if deletePartial { Self.removeDirectory(directory, generation: pending.generation) }
                 }
             } else if let oldMerge {
-                let directory = Self.checkpointDirectory(taskID)
+                let directory = checkpointDirectory(taskID)
                 registerCleanup(taskID: taskID) {
                     await oldMerge.task.value
                     if deletePartial { Self.removeDirectory(directory, generation: oldMerge.generation) }
                 }
             } else if deletePartial {
-                let directory = Self.checkpointDirectory(taskID)
+                let directory = checkpointDirectory(taskID)
                 let expected = generation ?? Self.readGenerationMarker(directory)
                 registerCleanup(taskID: taskID) {
                     Self.removeDirectory(directory, generation: expected)
@@ -545,9 +548,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
                                        didFinishDownloadingTo location: URL) {
         guard let (id, generation, index) = Self.parse(downloadTask.taskDescription),
               let http = downloadTask.response as? HTTPURLResponse else { return }
-        let staging = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(ProductIdentity.name, isDirectory: true)
-            .appendingPathComponent("staging", isDirectory: true)
+        let staging = baseDirectory.appendingPathComponent("staging", isDirectory: true)
         let transient = staging.appendingPathComponent("range-\(id)-\(generation)-\(index)-\(UUID().uuidString).partial")
         do {
             try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true,
@@ -870,10 +871,8 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         return (id, generation, index)
     }
 
-    nonisolated private static func checkpointDirectory(_ id: Int64) -> URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(ProductIdentity.name, isDirectory: true)
-            .appendingPathComponent("range-parts-\(id)", isDirectory: true)
+    nonisolated private func checkpointDirectory(_ id: Int64) -> URL {
+        baseDirectory.appendingPathComponent("range-parts-\(id)", isDirectory: true)
     }
 
     nonisolated private static func segmentURL(_ directory: URL, _ index: Int) -> URL {

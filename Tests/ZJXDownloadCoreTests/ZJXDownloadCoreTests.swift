@@ -121,4 +121,56 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(imported.items.first?.url.absoluteString, "https://example.com/pkg.dmg")
         XCTAssertEqual(imported.items.first?.headers["X-Custom"], "value-1")
     }
+
+    @MainActor
+    func testManualConcurrencyLimitAndQueuedPause() throws {
+        let storeDir = tempDirectory.appendingPathComponent("coordinator-store", isDirectory: true)
+        do {
+            let seedStore = try StateStore(directory: storeDir)
+            var seedData = AppData()
+            seedData.settings.maxManualDownloads = 1
+            seedData.settings.defaultDownloadDirectory = tempDirectory.path
+            seedData.tasks = [
+                DownloadRecord(
+                    id: 1,
+                    kind: .http,
+                    sourceURL: "http://127.0.0.1:9/task1.bin",
+                    displayName: "task1.bin",
+                    destinationDirectory: tempDirectory.path,
+                    status: .paused,
+                    queueID: 0
+                ),
+                DownloadRecord(
+                    id: 2,
+                    kind: .http,
+                    sourceURL: "http://127.0.0.1:9/task2.bin",
+                    displayName: "task2.bin",
+                    destinationDirectory: tempDirectory.path,
+                    status: .paused,
+                    queueID: 0
+                )
+            ]
+            seedData.queues[0].taskIDs = [1, 2]
+            seedData.nextTaskID = 3
+            try seedStore.save(seedData)
+        }
+        let coordinator = TaskCoordinator(
+            directory: storeDir,
+            credentialService: "com.zjx.download.test.\(UUID().uuidString)"
+        )
+        XCTAssertNil(coordinator.startupError)
+
+        coordinator.start([1, 2])
+        let task1 = try XCTUnwrap(coordinator.task(1))
+        let task2 = try XCTUnwrap(coordinator.task(2))
+        XCTAssertTrue(task1.status.isActive)
+        XCTAssertNil(task1.queueID)
+        XCTAssertEqual(task2.status, .queued)
+        XCTAssertNil(task2.queueID)
+
+        coordinator.pause([2])
+        XCTAssertEqual(coordinator.task(2)?.status, .paused)
+        coordinator.stopAll()
+        XCTAssertEqual(coordinator.task(1)?.status, .paused)
+    }
 }

@@ -330,18 +330,18 @@ public final class TaskCoordinator {
     private var sleepAssertionID: IOPMAssertionID?
     private var lastDiskAudit = Date.distantPast
 
-    public init() {
+    public init(directory: URL? = nil, credentialService: String = ProductIdentity.bundleID + ".credentials") {
         let loadedStore: StateStore
         let loadedData: AppData
         var loadError: String? = nil
         do {
-            let candidate = try StateStore()
+            let candidate = try StateStore(directory: directory)
             let value = try candidate.load()
             loadedStore = candidate
             loadedData = value
         } catch {
             let originalError = error
-            let recovery = StateStore.readOnlyRecovery()
+            let recovery = StateStore.readOnlyRecovery(directory: directory)
             loadedStore = recovery
             do {
                 loadedData = try recovery.load()
@@ -355,9 +355,9 @@ public final class TaskCoordinator {
         data = loadedData
         startupError = loadError
         _ = ProcessDNSResolver.apply(mode: loadedData.settings.dnsMode, dohURL: loadedData.settings.dohURL)
-        credentials = CredentialStore()
+        credentials = CredentialStore(service: credentialService)
         engine = DownloadEngine()
-        segmentedEngine = SegmentedDownloadService()
+        segmentedEngine = SegmentedDownloadService(baseDirectory: loadedStore.directory)
         queueScheduler = QueueScheduler()
         wireComponents()
         recoverInterruptedTasks()
@@ -514,6 +514,28 @@ public final class TaskCoordinator {
 
     public func pause(_ ids: [Int64]) {
         guard startupError == nil else { lastActionMessage = "数据无法读取，任务保持只读。"; return }
+        let uniqueIDs = Set(ids)
+        let queuedIDs = uniqueIDs.filter { taskIndex($0).map { data.tasks[$0].status == .queued } ?? false }
+        if !queuedIDs.isEmpty {
+            let previousData = data
+            var transitions: [(DownloadRecord, DownloadRecord)] = []
+            var affectedQueues = Set<Int64>()
+            for id in queuedIDs {
+                guard let index = taskIndex(id), data.tasks[index].status == .queued else { continue }
+                let previous = data.tasks[index]
+                data.tasks[index].status = .paused
+                transitions.append((previous, data.tasks[index]))
+                if let queueID = data.tasks[index].queueID { affectedQueues.insert(queueID) }
+            }
+            do {
+                try persist()
+                for (previous, current) in transitions { publishStatusTransition(from: previous, to: current) }
+                affectedQueues.forEach(handleQueueDrained)
+            } catch {
+                data = previousData
+                lastActionMessage = "无法暂停等待中的任务：状态保存失败（\(error.localizedDescription)）。"
+            }
+        }
         for id in ids {
             guard let index = taskIndex(id), data.tasks[index].status.isActive else { continue }
             let generation = transferGenerations[id] ?? 0
@@ -578,6 +600,7 @@ public final class TaskCoordinator {
         }
         affectedQueues.forEach(handleQueueDrained)
         updateSleepAssertion()
+        pumpQueues()
     }
 
     public func resume(_ ids: [Int64]) { start(ids) }
@@ -657,6 +680,7 @@ public final class TaskCoordinator {
         }
         selectedTaskIDs.subtract(validIDs)
         updateSleepAssertion()
+        pumpQueues()
         return errors
     }
 
@@ -826,6 +850,7 @@ public final class TaskCoordinator {
         if sleepPolicyChanged { updateSleepAssertion() }
         if globalModeChanged { onGlobalSpeedLimitModeChanged?(nextSettings.globalSpeedLimitMode) }
         if integrationSettingsChanged { onIntegrationSettingsChanged?(nextSettings) }
+        if nextSettings.maxManualDownloads > previousSettings.maxManualDownloads { pumpQueues() }
     }
 
     private var effectiveGlobalSpeedLimit: Int64 {
@@ -1350,10 +1375,18 @@ public final class TaskCoordinator {
 
     public func queueList() -> [[String: Any]] { data.queues.sorted { $0.order < $1.order }.map { ["id": $0.id, "name": $0.name] } }
 
-    public func stopAll() { pause(data.tasks.filter(\.status.isActive).map(\.id)) }
+    public func stopAll() {
+        for queueID in data.queues.filter(\.isRunning).map(\.id) { stopQueue(queueID) }
+        let pauseTargets = data.tasks.filter {
+            $0.status.isActive || ($0.status == .queued && $0.queueID == nil)
+        }.map(\.id)
+        pause(pauseTargets)
+    }
 
     public func prepareForTermination(completion: @escaping @MainActor (Bool) -> Void) {
         guard startupError == nil else { completion(true); return }
+        schedulerTask?.cancel()
+        schedulerTask = nil
         rejectPendingImportReviews()
         stopAll()
         Task { @MainActor [weak self] in
@@ -1406,9 +1439,13 @@ public final class TaskCoordinator {
         guard !store.isReadOnlyRecovery else { return }
         let previousData = data
         var changed = false
-        for index in data.tasks.indices where data.tasks[index].status.isActive {
+        for index in data.tasks.indices where data.tasks[index].status.isActive ||
+            (data.tasks[index].status == .queued && data.tasks[index].queueID == nil) {
+            let wasActive = data.tasks[index].status.isActive
             data.tasks[index].status = .paused
-            data.tasks[index].lastError = "应用上次退出时任务仍在传输。请恢复任务；来源校验后才会继续。"
+            if wasActive {
+                data.tasks[index].lastError = "应用上次退出时任务仍在传输。请恢复任务；来源校验后才会继续。"
+            }
             changed = true
         }
         for index in data.queues.indices where data.queues[index].isRunning {
@@ -1482,6 +1519,12 @@ public final class TaskCoordinator {
     }
 
     private func pumpQueues() {
+        let activeManualCount = data.tasks.filter { $0.queueID == nil && $0.status.isActive }.count
+        let availableManual = max(0, max(1, data.settings.maxManualDownloads) - activeManualCount)
+        if availableManual > 0 {
+            let manualCandidates = data.tasks.filter { $0.queueID == nil && $0.status == .queued }.map(\.id)
+            for id in manualCandidates.prefix(availableManual) { startTask(id, manual: false) }
+        }
         for queueIndex in data.queues.indices where data.queues[queueIndex].isRunning {
             let queue = data.queues[queueIndex]
             let activeCount = queue.taskIDs.filter { id in task(id)?.status.isActive == true }.count
@@ -1499,15 +1542,33 @@ public final class TaskCoordinator {
         guard startupError == nil, let index = taskIndex(id) else { return }
         guard data.tasks[index].status.canResume else { return }
         let previousData = data
+        let previous = data.tasks[index]
+        var record = data.tasks[index]
+        if manual {
+            if record.queueID != nil {
+                record.queueID = nil
+                for queueIndex in data.queues.indices { data.queues[queueIndex].taskIDs.removeAll { $0 == id } }
+            }
+            let activeManualCount = data.tasks.filter { $0.id != id && $0.queueID == nil && $0.status.isActive }.count
+            if activeManualCount >= max(1, data.settings.maxManualDownloads) {
+                record.status = .queued
+                record.lastError = nil
+                if data.tasks[index] != record || data.queues != previousData.queues {
+                    data.tasks[index] = record
+                    do { try persist() }
+                    catch {
+                        data = previousData
+                        lastActionMessage = "无法排队任务：状态保存失败（\(error.localizedDescription)）。"
+                        return
+                    }
+                    publishStatusTransition(from: previous, to: record)
+                }
+                return
+            }
+        }
         let previousGeneration = transferGenerations[id]
         let generation = nextTransferGeneration(for: id)
         pauseInProgress.removeValue(forKey: id)
-        let previous = data.tasks[index]
-        var record = data.tasks[index]
-        if manual, record.queueID != nil {
-            record.queueID = nil
-            for queueIndex in data.queues.indices { data.queues[queueIndex].taskIDs.removeAll { $0 == id } }
-        }
         record.status = .preparing
         record.lastError = nil
         record.startedAt = record.startedAt ?? .now
@@ -1898,6 +1959,8 @@ public final class TaskCoordinator {
         if message.localizedCaseInsensitiveContains("HTTP 401") || message.localizedCaseInsensitiveContains("HTTP 403") ||
             message.localizedCaseInsensitiveContains("远端文件与暂停前不同") || message.localizedCaseInsensitiveContains("不受支持") {
             updateStatus(id, .failed, error: message, generation: generation)
+            pumpQueues()
+            if let queueID = data.tasks[index].queueID { handleQueueDrained(queueID) }
             return
         }
         if data.tasks[index].retryCount < data.settings.maximumRetries {
@@ -1922,6 +1985,7 @@ public final class TaskCoordinator {
             }
         } else {
             updateStatus(id, .failed, error: message, generation: generation)
+            pumpQueues()
             if let queueID = data.tasks[index].queueID { handleQueueDrained(queueID) }
         }
     }
@@ -2006,6 +2070,7 @@ public final class TaskCoordinator {
         liveMetrics.removeValue(forKey: id)
         progressSnapshots.removeValue(forKey: id)
         updateSleepAssertion()
+        pumpQueues()
         if let queueID = data.tasks[index].queueID { handleQueueDrained(queueID) }
     }
 
