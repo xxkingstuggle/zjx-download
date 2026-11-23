@@ -52,7 +52,7 @@
 
 ## 80组功能落点与用户手测编号
 
-A 编号沿用 docs/clean-room-rebuild/40-end-to-end-acceptance.md。G-014 是旧阶段条款，用户本轮已明确覆盖，不计为产品能力；D-025 中 Linux 桌面快捷方式不适用于 macOS，产品差异会说明。
+A 编号沿用 docs/clean-room-rebuild/40-end-to-end-acceptance.md。G-014 是旧阶段条款，用户本轮已明确覆盖，不计为产品能力；D-025 仅实现 macOS 原生桌面与菜单入口。
 | 编号 | 功能/要求 | 新实现落点 | 用户手测编号 |
 |---|---|---|---|
 | G-001 | [R] 功能入口必须形成完整闭环 | Sources/ZJXDownloadCore/TaskCoordinator.swift; Sources/ZJXDownloadApp/MainWindow.swift | A-002, A-036, A-044 |
@@ -96,7 +96,7 @@ A 编号沿用 docs/clean-room-rebuild/40-end-to-end-acceptance.md。G-014 是�
 | D-022 | 关于、致谢、翻译和开源许可 | Sources/ZJXDownloadApp/AboutView.swift; LICENSE; browser-extension/LICENSE（项目/上游/翻译入口、许可与署名信息） | A-047 |
 | D-023 | 退出确认 | Sources/ZJXDownloadApp/SystemIntegration.swift; Sources/ZJXDownloadApp/AppMain.swift; Sources/ZJXDownloadApp/AppCommands.swift | A-025, A-050 |
 | D-024 | 下载完成后的系统电源动作 | Sources/ZJXDownloadApp/SystemIntegration.swift; Sources/ZJXDownloadCore/QueueScheduler.swift | A-025 |
-| D-025 | 平台专有桌面入口 | Sources/ZJXDownloadApp/AppCommands.swift（仅macOS入口；Linux桌面快捷方式记录为平台差异） | A-001, A-047（macOS差异说明） |
+| D-025 | 平台专有桌面入口 | Sources/ZJXDownloadApp/AppCommands.swift（仅macOS原生桌面与菜单入口） | A-001, A-047 |
 | D-026 | JSON/cURL 交换格式与任务数据边界 | Sources/ZJXDownloadCore/ExchangeCodec.swift; Sources/ZJXDownloadCLI/main.swift | A-033, A-044 |
 | N-001 | HTTP/HTTPS 下载创建、请求字段和命名 | Sources/ZJXDownloadCore/DownloadEngine.swift; Sources/ZJXDownloadCore/Models.swift | A-002, A-026 |
 | N-002 | Range、并发分片、断点恢复与重试 | Sources/ZJXDownloadCore/SegmentedDownloadService.swift; Sources/ZJXDownloadCore/TaskCoordinator.swift（有验证器时并行；预先分片，活动任务不动态重平衡） | A-007, A-008, A-009, A-010, A-013, A-016, A-019 |

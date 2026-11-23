@@ -3,7 +3,7 @@
 ## 开始与续跑
 
 - 先读 `PROGRESS.md` 的最新交付记录，再核对实际 Git、安装包和阻塞状态；历史记录不能当作当前验收。
-- 正式源码在 `/Users/zjx/Developer/repos/zjx-download`；独立仓库为 `xxkingstuggle/zjx-download`，正式默认分支为 `main`，临时工作分支使用 `zjx/` 前缀。发布物放 `~/Developer/releases/zjx-download/<版本>/`；构建/诊断放 `~/Developer/scratch/codex/<任务>/`。
+- 正式源码在 `~/Developer/repos/github.com/xxkingstuggle/zjx-download`；独立仓库为 `xxkingstuggle/zjx-download`，正式默认分支为 `main`，临时工作分支使用 `zjx/` 前缀。本地构建产物留在项目内 `build/` 或 `dist/`；正式发版托管到 GitHub Releases；临时诊断放 `~/Developer/scratch/<任务>/`。
 
 ## 项目与边界
 

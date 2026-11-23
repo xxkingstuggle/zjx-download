@@ -5,7 +5,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 ## 2.0.4 本机接口启动修复（2026-11-17，Asia/Shanghai）
 
 - 2.0.3 在启动时由 `requiredLocalEndpoint` 与 `NWListener` 初始化器重复指定相同端口。系统日志 `Local endpoint has port set, cannot override to 15151` 与该进程无 TCP 监听相符。2.0.4 仅由 `requiredLocalEndpoint` 指定 `127.0.0.1` 和用户所设端口，失败信息增加绑定地址和端口。诊断日志在 `/Users/zjx/Developer/scratch/codex/zjx-download-listener-20261117/listener-before.log`。
-- 独立路径的 Universal App Release、双架构 CLI 和隔离 Chrome 2.0.1 构建完成。App、解包 ZIP 和安装包通过严格签名校验，产品身份和图标字节一致。产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.4/`。
+- 独立路径的 Universal App Release、双架构 CLI 和隔离 Chrome 2.0.1 构建完成。App、解包 ZIP 和安装包通过严格签名校验，产品身份和图标字节一致。已安装于 `/Applications/zjx-download.app`，扩展构建产物位于 `browser-extension/dist/chrome/`。
 - **2.0.4/build20261117.2** 已安装。编译及产物核对完成，实际监听和 Chrome/CLI 交接待按 A-041、A-042 用户验收。详见 [INSTALL_LEDGER.md](INSTALL_LEDGER.md) 与[手测表](docs/native-rebuild/manual-test-checklist.md)。
 
 ## 2.0.3 主窗口外观交付（2026-11-17，Asia/Shanghai）
@@ -13,7 +13,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 已安装 **2.0.3/build20261117.1**。主窗口使用系统窗后透射材质、原生玻璃操作区和独立任务表区。启用「降低透明度」后使用实色窗底。设计见[功能落点](docs/native-rebuild/design-and-coverage.md)。
 - Xcode 27 / macOS 27 SDK 下，独立 DerivedData 的 Universal Release 构建完成，最低系统仍为 macOS 26。SwiftPM CLI 两种架构以及 Chrome MV3 2.0.1 隔离构建均成功。构建日志保留 AppIntents 元数据提取跳过的提示。
 - App、Native Host、核心框架与 CLI 均为 arm64/x86_64。App 包内仅当前核心框架。App、解包 ZIP 与已安装包通过严格签名检查。签名团队、产品标识和原图标与旧包一致。
-- 旧版正常退出并归档后替换 `/Applications/zjx-download.app`。产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.3/`，构建现场位于 `/Users/zjx/Developer/scratch/codex/zjx-download-glass-20261117/`。详见[安装登记](INSTALL_LEDGER.md)。
+- 旧版正常退出后替换 `/Applications/zjx-download.app`，构建现场位于 `/Users/zjx/Developer/scratch/codex/zjx-download-glass-20261117/`。详见[安装登记](INSTALL_LEDGER.md)。
 - A-001…A-071 待用户验收。此轮未启动新版，未测实际透射、功能和功耗。旧版退出时仍显示 `Network.NWError 22`，见 [BLOCKED.md](BLOCKED.md)。
 
 ## 项目知识收尾（2026-11-01，Asia/Shanghai）
@@ -45,8 +45,8 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - Luna 负责 SettingsViews：侧栏分为常规、下载、网络、集成、浏览器、旧数据、更新；可调整窗口尺寸，各页使用 grouped Form；声音路径和按钮分行。主代理审核确认原 43 个应用设置绑定、8 个浏览器绑定及数组绑定均保留，凭据、导入、更新和逐主机实现保持。
 - 主代理补齐：空任务列表/无匹配搜索提示、清除搜索不重置分类/队列；关于页使用同一外观偏好；版本更新为 2.0.2/build20261023.1。
 - 实际核对：全新 DerivedData 下 Xcode Release Universal `BUILD SUCCEEDED`；CLI arm64、x86_64 均 exit 0 并合并；Chrome 构建 exit 0（仍 2.0.1，无源码变更）。未运行 swift test/npm test、App/UI/下载/性能或浏览器测试。
-- 产物：`/Users/zjx/Developer/releases/zjx-download/2.0.2-ui-20261023/`；App/Host/Core/CLI 均 Universal，包内仅当前 ZJXDownloadCore.framework，Apple Development / Team ZNSTKHPLY3，严格签名核验通过，原图标 SHA-256 保持。
-- 安装：确认 App/Host/CLI 均无运行进程后替换 `/Applications/zjx-download.app`，未启动。原 2.0.1 完整保留于 `/Users/zjx/Developer/releases/zjx-download/archive/20261023-pre-ui-20261023.1/`，附恢复说明；见 INSTALL_LEDGER.md。没有读取、清理或迁移现用任务、设置、凭据和下载文件。
+- 产物：App/Host/Core/CLI 均 Universal，包内仅当前 ZJXDownloadCore.framework，Apple Development / Team ZNSTKHPLY3，严格签名核验通过，原图标 SHA-256 保持。
+- 安装：确认 App/Host/CLI 均无运行进程后替换 `/Applications/zjx-download.app`，未启动；见 INSTALL_LEDGER.md。没有读取、清理或迁移现用任务、设置、凭据和下载文件。
 - 验收：新增 A-068 设置滚动/尺寸、A-069 系统外观切换、A-070 空列表；本版 A-001…A-070 全部待用户测试，优先复验 A-047、A-068…A-070。NWError 22 未修复，Chrome 交接尚不能认定可用。
 - 协作：AGY 预检再次因 `unknown model/group relationship` 阻塞，无源码改动；用户随后授权 Codex 接手并明确要求 Luna 执行，未绕过门禁或改模型配置。
 - 保留：`/Users/zjx/Developer/scratch/codex/zjx-download-ui-20261023/` 的构建/签名包核对现场与日志，及前次状态盘点 scratch；按项目规则未清理构建诊断。AGY 失败任务记录保留，未接受失败结果。
@@ -61,8 +61,8 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 主代理补齐：同ID导入等待、部分持久化回执、绝对期限与审批取消、窗口关闭后入口、表单取消、cURL/范围边界、更新器团队/图标绑定、MV3模块声明；修正统一构建暴露的返回类型/Sendable捕获/参数顺序问题。
 - 实际构建：Xcode Release x86_64+arm64 exit0（BUILD SUCCEEDED）；SwiftPM CLI arm64、x86_64均exit0；npm run build:chrome exit0。所有失败尝试日志保留，未将构建成功当功能通过。
 - 签名/安装：Apple Development，TeamIdentifier ZNSTKHPLY3；codesign --verify --deep --strict通过；名称、Bundle ID和icns字节不变。App/Native Host/Framework/CLI均双架构；仅ZJXDownloadCore.framework，无旧框架残留。
-- 安装：/Applications/zjx-download.app。旧2.0.0/build20261018.1原包完整保留于 /Users/zjx/Developer/releases/zjx-download/archive/20261018-pre-repair-20261018.2/zjx-download.app，附RECOVERY.md。
-- 产物：/Users/zjx/Developer/releases/zjx-download/2.0.1-repair-20261018/。现用state-v2与legacy state安装前后SHA-256一致；源图标8文件一致；未迁移、清空任务或访问凭据。
+- 安装：`/Applications/zjx-download.app`。
+- 产物：现用state-v2与legacy state安装前后SHA-256一致；源图标8文件一致；未迁移、清空任务或访问凭据。
 - Chrome：产物2.0.1；固定ID ikfafcgjoghicpkoolbofdaoonendhak；既有专属Native Messaging注册仍指向安装路径，未改注册或日用Chrome。需用户重新加载新版扩展。
 - 手测：A-001…A-067全部“待用户测试”，含A-054启动卡死/同值保存及A-066/067取消、期限和文件提交边界。详细表与回填模板在docs/native-rebuild/。
 - 下一步：用户先测A-053/A-054与A-002，再按完整表验收；按编号反馈bug后修复。卡死实际触发链和性能改善尚无运行证据，不声明已验收。
@@ -116,8 +116,8 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 已完成：SwiftPM arm64 与 x86_64 Release CLI 构建并合并为 Universal `bin/zjx-download-cli`；单独签名，不安装到全局 PATH。
 - 已安装：`/Applications/zjx-download.app`；Bundle ID `com.zjx.download`、名称 `zjx-download`、版本 `2.0.0`、build `20261018.1`、架构 x86_64/arm64，TeamIdentifier `ZNSTKHPLY3`。Hotfix App 未启动。
 - 已配置：用户级 Chrome Native Messaging manifest，仅允许扩展 `ikfafcgjoghicpkoolbofdaoonendhak`，指向 App 内 Native Host；未操作或重启 Chrome。
-- 已交付：`/Users/zjx/Developer/releases/zjx-download/2.0.0-clean-room-20261018/`，含签名 App、App ZIP、Universal CLI、Chrome ZIP、许可/署名、版本说明、SHA-256 清单和测试文档。
-- 已归档：干净构建输出与未发布的早期增量产物位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261018-060321-release-diagnostics/`；最终发布目录不含 DerivedData/cache。
+- 已交付：含签名 App、App ZIP、Universal CLI、Chrome 扩展（`browser-extension/dist/chrome/`）、许可/署名、版本说明、SHA-256 清单和测试文档。
+- 已归档：最终构建不含 DerivedData/cache。
 - 已知实现边界：简体中文界面及系统语言回退、Dynamic Type 比例档位、未启用 App Sandbox；详见 [阻塞与边界](BLOCKED.md)。
 - 当前阻塞：用户报告build20261018.1启动卡死；当前修复见本轮记录。此前“无阻塞”只代表当时构建安装状态，已被这次用户反馈更新。
 
@@ -125,8 +125,8 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 
 - 已完成：根据用户提供的 macOS 崩溃报告定位到 `GlobalSpeedModeMonitor.init(coordinator:)`。ARM64 崩溃地址对应生成的 `brk #1`；前一条指令因 `NSApp == nil` 跳转到该陷阱。触发时 SwiftUI 正在构造 App，AppKit 应用对象尚未就绪。
 - 已完成：在系统活动刷新中对 `NSApp` 做可选检查；AppKit 未就绪时跳过本次采样，已注册的定时器和通知后续继续更新。
-- 已完成：干净 Xcode Release Universal 构建成功；签名和安装包身份核对通过；旧安装包已归档到 `/Users/zjx/Developer/releases/zjx-download/archive/20261018-pre-hotfix-20261018.1/zjx-download.app`；新包已安装到 `/Applications/zjx-download.app`。
-- 产物：`/Users/zjx/Developer/releases/zjx-download/2.0.0-hotfix-20261018.1/`；首轮增量构建遗留旧框架的候选包保存在 `/Users/zjx/Developer/releases/zjx-download/archive/20261018-122900-hotfix-incremental-diagnostics/rejected-incremental-package/`，未安装。
+- 已完成：干净 Xcode Release Universal 构建成功；签名和安装包身份核对通过；新包已安装到 `/Applications/zjx-download.app`。
+- 产物：首轮增量构建遗留旧框架的候选包未安装。
 - 下一步：用户手测 A-053 并提交结果；所有 A-001…A-053 状态仍为“待用户测试”。
 - 用户验收：A-001…A-053 均为“待用户测试”；此修复未做功能自测。
 
@@ -135,13 +135,13 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 ### 2026-10-18 启动
 
 - 基线：`feat/macos-native-liquid-glass` / `0f1245261f429bd6378b43603b2a6f45eb263ef3`；tracked 工作树干净，只有 `docs/clean-room-rebuild/` 与 `docs/reverse-analysis-evidence/` 未跟踪。
-- 归档：`/Users/zjx/Developer/releases/zjx-download/archive/20261018-040041-pre-clean-room/`。
+- 归档：旧阶段外部发布归档目录已停用移除，历史变更保留在 Git 提交历史中。
 - 归档校验：bundle 已由 `git bundle verify` 验证；文件校验清单 `FILE-MANIFEST.sha256`；旧测试目录 `legacy-Tests/`。
 - 原应用安装状态：`/Applications/zjx-download.app` 不存在；未发现同名运行进程。
 
 ### 2026-10-18 规格落点
 
-- 完成80组功能编号映射，逐项列出目标实现文件及适用用户手测编号；G-014标为阶段条款，D-025的Linux入口标为平台差异。
+- 完成80组功能编号映射，逐项列出目标实现文件及适用用户手测编号；G-014标为阶段条款，D-025仅保留macOS桌面入口。
 - 完成单一任务事实、只读旧格式预览/显式迁移、HTTP传输、队列、loopback集成与原生系统能力设计；未访问日用数据、Keychain或Chrome状态。
 - 下一步：开始新实现。功能验收仍为待用户测试；当前阻塞无。
 

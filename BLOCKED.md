@@ -35,7 +35,6 @@
 - 定位：崩溃地址对应 Swift 生成的 nil 陷阱；前一条指令检查 `NSApp`，为空时跳至陷阱。该初始化在 SwiftUI 构造 App 期间执行，早于 `NSApplication` 建立。
 - 修复：活动采样先确认 `NSApp` 已存在；没有时跳过本次，之后由已注册定时器/通知重试。用户需按 A-053 验证。
 - 目标更新：build 20261018.1；已安装，签名核验通过。
-- 回退包：`/Users/zjx/Developer/releases/zjx-download/archive/20261018-pre-hotfix-20261018.1/zjx-download.app`。
 
 这些边界已在 [功能落点表](docs/native-rebuild/design-and-coverage.md) 和 [手测表](docs/native-rebuild/manual-test-checklist.md) 中说明。功能落点/构建成功不代表用户验收通过。
 
@@ -43,9 +42,7 @@
 
 - `/Applications/zjx-download.app` 为 `2.0.4/build20261117.2`，Universal x86_64/arm64，Apple Development / Team ZNSTKHPLY3，已通过严格签名校验。
 - Chrome 扩展仍为 2.0.1。此轮在隔离目录构建，未修改日用 Chrome 或 Native Messaging 注册。
-- 产物位于 `/Users/zjx/Developer/releases/zjx-download/2.0.4/`。
-- 2.0.3 回退包位于 `/Users/zjx/Developer/releases/zjx-download/archive/20261117-pre-listener-20261117.2/zjx-download.app`，同目录含恢复说明。
-- 旧源码：`/Users/zjx/Developer/releases/zjx-download/archive/20261018-040041-pre-clean-room/`。
+- 正式安装包位于 `/Applications/zjx-download.app`，扩展构建产物位于 `browser-extension/dist/chrome/`。
 - 本轮只替换 App 包，没有访问、修改或迁移任务、设置、凭据及下载文件。安装 icns SHA-256 与旧包一致；更早的数据哈希记录只代表当时安装，不作为本次数据检查。
 
 ## 历史记录

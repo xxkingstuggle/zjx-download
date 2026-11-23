@@ -2,6 +2,8 @@
 .build/
 .build-cli-arm64/
 .build-cli-x86_64/
+build/
+dist/
 DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
@@ -32,6 +34,3 @@ docs/native-completeness-audit/*taskbook*.md
 *.pem
 *.p8
 *.pfx
-*.jks
-/release/
-/releases/

@@ -47,7 +47,7 @@ body:
     attributes:
       label: ⚙️ System/Device Details (optional)
       description: e.g., CPU, RAM, device model
-      placeholder: "CPU: i7-12700K; RAM: 32GB DDR5"
+      placeholder: "MacBook Pro (Apple M4); RAM: 16GB"
     validations:
       required: false
   - type: textarea

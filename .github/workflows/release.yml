@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-release:
-    runs-on: macos-14
+    runs-on: macos-latest
     env:
       APP_NAME: zjx-download.app
       ZIP_NAME: zjx-download-macOS.zip
