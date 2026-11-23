@@ -99,7 +99,7 @@ struct MainWindow: View {
                 }
                 HStack {
                     Text("\(visibleTasks.count) 项").foregroundStyle(.secondary)
-                    if let port = server.listeningPort { Label("本机接口 127.0.0.1:\(port)", systemImage: "point.3.connected.trianglepath.dotted").font(.caption).foregroundStyle(.secondary) }
+                    if let port = server.listeningPort { Label("本机接口 127.0.0.1:\(String(port))", systemImage: "point.3.connected.trianglepath.dotted").font(.caption).foregroundStyle(.secondary) }
                     else if let lastError = server.lastError { Label(lastError, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     Divider().frame(height: 14)
                     Label(coordinator.data.settings.defaultDownloadDirectory, systemImage: "folder")
