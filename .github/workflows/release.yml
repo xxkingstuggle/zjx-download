@@ -50,6 +50,9 @@ jobs:
           # Xcode signs embedded frameworks and helpers inside-out with the
           # same ad-hoc identity. Re-sign the outer app explicitly as the
           # final step, then verify the complete bundle recursively.
+          for item in "$APP"/Contents/Frameworks/* "$APP"/Contents/Helpers/*; do
+            /usr/bin/codesign --force --sign - --timestamp=none "$item"
+          done
           /usr/bin/codesign --force --sign - --timestamp=none "$APP"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 
