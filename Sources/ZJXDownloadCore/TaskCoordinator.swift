@@ -356,7 +356,7 @@ public final class TaskCoordinator {
         startupError = loadError
         _ = ProcessDNSResolver.apply(mode: loadedData.settings.dnsMode, dohURL: loadedData.settings.dohURL)
         credentials = CredentialStore(service: credentialService)
-        engine = DownloadEngine()
+        engine = DownloadEngine(baseDirectory: loadedStore.directory)
         segmentedEngine = SegmentedDownloadService(baseDirectory: loadedStore.directory)
         queueScheduler = QueueScheduler()
         wireComponents()
@@ -737,8 +737,12 @@ public final class TaskCoordinator {
         let generation = transferGenerations[id] ?? 0
         invalidateTransferGeneration(for: id)
         pauseInProgress.removeValue(forKey: id)
+        preparationWork.removeValue(forKey: id)?.cancel()
+        if let work = hlsWork.removeValue(forKey: id) { work.task.cancel() }
         segmentedEngine.cancel(taskID: id, generation: generation, deletePartial: true)
         engine.cancel(taskID: id, generation: generation)
+        liveMetrics.removeValue(forKey: id)
+        progressSnapshots.removeValue(forKey: id)
         schedulePartialCleanup(id: id, resumeDataName: previous.resumeDataName, removeHLS: true)
         pumpQueues()
     }
@@ -1441,10 +1445,30 @@ public final class TaskCoordinator {
         var changed = false
         for index in data.tasks.indices where data.tasks[index].status.isActive ||
             (data.tasks[index].status == .queued && data.tasks[index].queueID == nil) {
-            let wasActive = data.tasks[index].status.isActive
+            let previousStatus = data.tasks[index].status
+            let wasActive = previousStatus.isActive
             data.tasks[index].status = .paused
             if wasActive {
                 data.tasks[index].lastError = "应用上次退出时任务仍在传输。请恢复任务；来源校验后才会继续。"
+                if data.tasks[index].kind == .http {
+                    if let committed = segmentedEngine.committedBytes(for: data.tasks[index]) {
+                        data.tasks[index].receivedBytes = committed
+                    } else {
+                        let validResumeOnDisk: Bool = {
+                            guard previousStatus == .preparing,
+                                  let name = data.tasks[index].resumeDataName,
+                                  !name.contains("/"), !name.contains("..") else { return false }
+                            return FileManager.default.fileExists(atPath: store.resumeDataURL(for: name).path)
+                        }()
+                        if !validResumeOnDisk {
+                            if let staleResume = data.tasks[index].resumeDataName {
+                                schedulePartialCleanup(id: data.tasks[index].id, resumeDataName: staleResume, removeHLS: false)
+                            }
+                            data.tasks[index].resumeDataName = nil
+                            data.tasks[index].receivedBytes = 0
+                        }
+                    }
+                }
             }
             changed = true
         }
@@ -1682,6 +1706,25 @@ public final class TaskCoordinator {
                         self.schedulePartialCleanup(id: id, resumeDataName: prior.resumeDataName, removeHLS: false)
                         self.segmentedEngine.cancel(taskID: id, generation: previousGeneration ?? 0, deletePartial: true)
                     }
+                } else if record.kind == .http, record.supportsRanges == nil {
+                    let info = try await self.engine.probe(sourceURL,
+                        headers: effective.headers.merging(effective.credentialHeaders) { _, new in new },
+                        userAgent: effective.userAgent, settings: engineSettings,
+                        proxyPassword: try self.credentials.read(account: engineSettings.proxyPasswordAccount) ?? "")
+                    guard !Task.isCancelled, self.isCurrentGeneration(generation, for: id),
+                          let currentIndex = self.taskIndex(id) else { return }
+                    let prior = self.data.tasks[currentIndex]
+                    record = prior
+                    record.totalBytes = info.contentLength
+                    record.etag = info.etag
+                    record.lastModified = info.lastModified
+                    record.supportsRanges = info.supportsRanges
+                    self.data.tasks[currentIndex] = record
+                    do { try self.persist() }
+                    catch {
+                        if let rollbackIndex = self.taskIndex(id) { self.data.tasks[rollbackIndex] = prior }
+                        throw error
+                    }
                 }
                 try Task.checkCancellation()
                 guard self.isCurrentGeneration(generation, for: id) else { return }
@@ -1715,10 +1758,11 @@ public final class TaskCoordinator {
                     guard !Task.isCancelled, self.isCurrentGeneration(generation, for: id) else { return }
                     self.updateStatus(id, .downloading, error: nil, generation: generation)
                 } else {
+                    let proxyPassword = try self.credentials.read(account: engineSettings.proxyPasswordAccount) ?? ""
                     try self.engine.start(task: record, generation: generation,
                                           headers: effective.headers.merging(effective.credentialHeaders) { _, new in new }, settings: engineSettings,
                                           resumeData: record.resumeDataName == nil ? nil : resume,
-                                          speedLimitBytesPerSecond: effective.speedLimit)
+                                          speedLimitBytesPerSecond: effective.speedLimit, proxyPassword: proxyPassword)
                     guard self.isCurrentGeneration(generation, for: id) else { return }
                     self.updateStatus(id, .downloading, error: nil, generation: generation)
                 }
@@ -1734,6 +1778,7 @@ public final class TaskCoordinator {
                           proxyPassword: String, hostCredentials: [String: [String: String]], maximumConnections: Int,
                           speedLimitBytesPerSecond: Int64) {
         let id = record.id
+        let baseDirectory = store.directory
         let runtimePolicy = HLSRuntimePolicy(settings: settings, maximumConnections: maximumConnections,
             speedLimitBytesPerSecond: speedLimitBytesPerSecond, taskConnectionOverride: record.connectionCount != nil)
         hlsPolicies[id] = (generation, runtimePolicy)
@@ -1747,7 +1792,8 @@ public final class TaskCoordinator {
                 let staged = try await HLSService.download(task: record, headers: headers, settings: settings,
                     proxyPassword: proxyPassword, hostCredentials: hostCredentials,
                     maximumConnections: maximumConnections,
-                    speedLimitBytesPerSecond: speedLimitBytesPerSecond, runtimePolicy: runtimePolicy, generation: generation) { [weak self] received, total in
+                    speedLimitBytesPerSecond: speedLimitBytesPerSecond, runtimePolicy: runtimePolicy,
+                    generation: generation, baseDirectory: baseDirectory) { [weak self] received, total in
                     Task { @MainActor in self?.updateProgress(id, generation: generation, received: received, total: total) }
                 }
                 guard let self, !Task.isCancelled, self.isCurrentGeneration(generation, for: id) else {
@@ -2229,9 +2275,7 @@ public final class TaskCoordinator {
             resumeURL = nil
         }
         let hlsURL = removeHLS
-            ? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent(ProductIdentity.name, isDirectory: true)
-                .appendingPathComponent("hls-\(id)", isDirectory: true)
+            ? store.directory.appendingPathComponent("hls-\(id)", isDirectory: true)
             : nil
         Task.detached(priority: .utility) {
             if let resumeURL { try? FileManager.default.removeItem(at: resumeURL) }

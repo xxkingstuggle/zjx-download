@@ -207,4 +207,88 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(coordinator.task(1)?.receivedBytes, 32_768)
         coordinator.stopAll()
     }
+
+    @MainActor
+    func testCancelRemovesCrossSessionSegmentedCheckpoint() async throws {
+        let storeDir = tempDirectory.appendingPathComponent("cross-session-cancel", isDirectory: true)
+        let segmentDir = storeDir
+            .appendingPathComponent("range-parts-1", isDirectory: true)
+        try FileManager.default.createDirectory(at: segmentDir, withIntermediateDirectories: true)
+        try Data("5".utf8).write(to: segmentDir.appendingPathComponent("active-generation"))
+        try Data("partial".utf8).write(to: segmentDir.appendingPathComponent("segment-0000.part"))
+
+        let service = SegmentedDownloadService(baseDirectory: storeDir)
+        service.cancel(taskID: 1, generation: 0, deletePartial: true)
+        for _ in 0..<50 where FileManager.default.fileExists(atPath: segmentDir.path) {
+            await Task.yield()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: segmentDir.path))
+    }
+
+    @MainActor
+    func testRecoverInterruptedTasksReconcilesCommittedSegmentsAndUnpersistedSingleConnection() throws {
+        let storeDir = tempDirectory.appendingPathComponent("recover-interrupted-store", isDirectory: true)
+        let segmentDir = storeDir
+            .appendingPathComponent("range-parts-1", isDirectory: true)
+        try FileManager.default.createDirectory(at: segmentDir, withIntermediateDirectories: true)
+        let manifestJSON = """
+        {
+          "sourceURL": "http://127.0.0.1:9/segmented.bin",
+          "etag": "\\"etag-1\\"",
+          "total": 2048,
+          "ranges": [
+            { "index": 0, "lower": 0, "upper": 1023 },
+            { "index": 1, "lower": 1024, "upper": 2047 }
+          ]
+        }
+        """
+        try Data(manifestJSON.utf8).write(to: segmentDir.appendingPathComponent("manifest.json"))
+        try Data(repeating: 0x41, count: 1024).write(to: segmentDir.appendingPathComponent("segment-0000.part"))
+
+        do {
+            let seedStore = try StateStore(directory: storeDir)
+            var seedData = AppData()
+            seedData.settings.defaultDownloadDirectory = tempDirectory.path
+            seedData.tasks = [
+                DownloadRecord(
+                    id: 1,
+                    kind: .http,
+                    sourceURL: "http://127.0.0.1:9/segmented.bin",
+                    displayName: "segmented.bin",
+                    destinationDirectory: tempDirectory.path,
+                    status: .downloading,
+                    totalBytes: 2048,
+                    receivedBytes: 1700,
+                    etag: "\"etag-1\"",
+                    supportsRanges: true
+                ),
+                DownloadRecord(
+                    id: 2,
+                    kind: .http,
+                    sourceURL: "http://127.0.0.1:9/single.bin",
+                    displayName: "single.bin",
+                    destinationDirectory: tempDirectory.path,
+                    status: .downloading,
+                    totalBytes: 2048,
+                    receivedBytes: 900,
+                    supportsRanges: false
+                )
+            ]
+            seedData.nextTaskID = 3
+            try seedStore.save(seedData)
+        }
+
+        let coordinator = TaskCoordinator(
+            directory: storeDir,
+            credentialService: "com.zjx.download.test.\(UUID().uuidString)"
+        )
+        let recoveredSegmented = try XCTUnwrap(coordinator.task(1))
+        XCTAssertEqual(recoveredSegmented.status, .paused)
+        XCTAssertEqual(recoveredSegmented.receivedBytes, 1024)
+
+        let recoveredSingle = try XCTUnwrap(coordinator.task(2))
+        XCTAssertEqual(recoveredSingle.status, .paused)
+        XCTAssertEqual(recoveredSingle.receivedBytes, 0)
+    }
 }

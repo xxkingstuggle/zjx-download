@@ -154,13 +154,20 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
     private var expectedSources: [Int64: ExpectedDownloadSource] = [:]
     private nonisolated let sessionPolicies = DownloadSessionPolicyStore()
     private nonisolated let progressMailbox = DownloadProgressMailbox()
+    private nonisolated let baseDirectory: URL
     private let delegateQueue: OperationQueue
 
-    public override init() {
+    public init(baseDirectory: URL? = nil) {
+        self.baseDirectory = baseDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(ProductIdentity.name, isDirectory: true)
         delegateQueue = OperationQueue()
         delegateQueue.name = "com.zjx.download.transfer-delegate"
         delegateQueue.maxConcurrentOperationCount = 1
         super.init()
+    }
+
+    public convenience override init() {
+        self.init(baseDirectory: nil)
     }
 
     public func probe(_ url: URL, headers: [String: String], userAgent: String, settings: AppSettings,
@@ -368,9 +375,7 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
         }
         let requestRange = downloadTask.originalRequest?.value(forHTTPHeaderField: "Range")
             ?? downloadTask.currentRequest?.value(forHTTPHeaderField: "Range")
-        let staging = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(ProductIdentity.name, isDirectory: true)
-            .appendingPathComponent("staging", isDirectory: true)
+        let staging = baseDirectory.appendingPathComponent("staging", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let staged = staging.appendingPathComponent("task-\(taskID)-\(UUID().uuidString).complete")

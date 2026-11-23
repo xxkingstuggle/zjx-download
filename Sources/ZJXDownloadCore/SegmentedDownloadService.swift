@@ -197,6 +197,30 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         }
     }
 
+    public func committedBytes(for task: DownloadRecord) -> Int64? {
+        guard let total = task.totalBytes, total > 0 else { return nil }
+        let directory = checkpointDirectory(task.id)
+        return SegmentedDirectoryLocks.shared.withLock(directory: directory) {
+            let manifestURL = directory.appendingPathComponent("manifest.json")
+            guard let stored = try? Data(contentsOf: manifestURL),
+                  let manifest = try? JSONDecoder().decode(Manifest.self, from: stored),
+                  manifest.sourceURL == task.sourceURL,
+                  manifest.etag == task.etag,
+                  manifest.lastModified == task.lastModified,
+                  manifest.total == total,
+                  manifest.ranges.first?.lower == 0,
+                  manifest.ranges.last?.upper == total - 1,
+                  Self.hasContiguousRanges(manifest.ranges, total: total) else { return nil }
+            var completedTotal: Int64 = 0
+            for range in manifest.ranges {
+                let file = Self.segmentURL(directory, range.index)
+                let size = ((try? FileManager.default.attributesOfItem(atPath: file.path)[.size]) as? NSNumber)?.int64Value
+                if size == range.length { completedTotal += range.length }
+            }
+            return min(total, completedTotal)
+        }
+    }
+
     public func updateSettings(taskID: Int64, settings: AppSettings, speedLimit: Int64, connectionLimit: Int) {
         guard let transfer = transfers[taskID] else { return }
         transfer.settings = settings
@@ -353,9 +377,9 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
                     await oldMerge.task.value
                     if deletePartial { Self.removeDirectory(directory, generation: oldMerge.generation) }
                 }
-            } else if deletePartial {
+            } else if deletePartial, transfers[taskID] == nil, setupTasks[taskID] == nil, mergeTasks[taskID] == nil {
                 let directory = checkpointDirectory(taskID)
-                let expected = generation ?? Self.readGenerationMarker(directory)
+                let expected = Self.readGenerationMarker(directory)
                 registerCleanup(taskID: taskID) {
                     Self.removeDirectory(directory, generation: expected)
                 }

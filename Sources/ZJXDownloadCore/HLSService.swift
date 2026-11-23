@@ -447,6 +447,7 @@ public enum HLSService {
                                 proxyPassword: String = "", hostCredentials: [String: [String: String]] = [:],
                                 maximumConnections: Int = 4, speedLimitBytesPerSecond: Int64 = 0,
                                 runtimePolicy: HLSRuntimePolicy? = nil, generation: UInt64 = 0,
+                                baseDirectory: URL? = nil,
                                 progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL {
         guard let url = URL(string: task.sourceURL), NetworkConfiguration.validate(url) else {
             throw DownloadEngineError.invalidURL
@@ -520,8 +521,9 @@ public enum HLSService {
         let playlist = try parse(text, baseURL: finalPlaylistURL)
         let segmentURLs = playlist.segments.map(\.absoluteString)
         let digest = SHA256.hash(data: manifestData).map { String(format: "%02x", $0) }.joined()
-        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let base = baseDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(ProductIdentity.name, isDirectory: true)
+        let root = base
             .appendingPathComponent("hls-\(task.id)", isDirectory: true)
         _ = try await store.prepare(taskID: task.id, generation: generation,
                                 root: root, digest: digest, segmentURLs: segmentURLs)
