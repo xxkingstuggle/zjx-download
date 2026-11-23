@@ -173,4 +173,38 @@ final class ZJXDownloadCoreTests: XCTestCase {
         coordinator.stopAll()
         XCTAssertEqual(coordinator.task(1)?.status, .paused)
     }
+
+    @MainActor
+    func testProgressBaselineResetsToVerifiedCheckpointOnNewGeneration() throws {
+        let storeDir = tempDirectory.appendingPathComponent("progress-store", isDirectory: true)
+        do {
+            let seedStore = try StateStore(directory: storeDir)
+            var seedData = AppData()
+            seedData.settings.defaultDownloadDirectory = tempDirectory.path
+            seedData.tasks = [
+                DownloadRecord(
+                    id: 1,
+                    kind: .http,
+                    sourceURL: "http://127.0.0.1:9/part.bin",
+                    displayName: "part.bin",
+                    destinationDirectory: tempDirectory.path,
+                    status: .paused,
+                    totalBytes: 100_000,
+                    receivedBytes: 50_000,
+                    etag: "\"v1\"",
+                    supportsRanges: true
+                )
+            ]
+            seedData.nextTaskID = 2
+            try seedStore.save(seedData)
+        }
+        let coordinator = TaskCoordinator(
+            directory: storeDir,
+            credentialService: "com.zjx.download.test.\(UUID().uuidString)"
+        )
+        coordinator.start([1])
+        coordinator.segmentedEngine.onProgress?(1, 1, 32_768, 100_000)
+        XCTAssertEqual(coordinator.task(1)?.receivedBytes, 32_768)
+        coordinator.stopAll()
+    }
 }

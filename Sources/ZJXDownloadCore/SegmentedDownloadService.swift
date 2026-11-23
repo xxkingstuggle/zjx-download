@@ -110,7 +110,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
     public var onProgress: ((Int64, UInt64, Int64, Int64?) -> Void)?
     public var onFinished: ((Int64, UInt64, URL) -> Void)?
     public var onFailed: ((Int64, UInt64, String) -> Void)?
-    public var onPaused: ((Int64, UInt64) -> Void)?
+    public var onPaused: ((Int64, UInt64, Int64?) -> Void)?
     public var onRangeUnsupported: ((Int64, UInt64) -> Void)?
 
     private struct ByteRange: Codable, Sendable {
@@ -303,6 +303,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         preparingGenerations.removeValue(forKey: task.id)
         progressMailbox.begin(taskID: task.id, generation: generation)
         rateSamples[task.id] = (.now, 0)
+        reportProgress(transfer, force: true)
         schedule(task.id)
     }
 
@@ -740,7 +741,8 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         rateSamples.removeValue(forKey: id)
         progressMailbox.end(taskID: id, generation: transfer.generation)
         progressDrainTasks.removeValue(forKey: id)?.task.cancel()
-        onPaused?(id, transfer.generation)
+        let committed = min(transfer.manifest.total, completedBytes(transfer))
+        onPaused?(id, transfer.generation, committed)
     }
 
     private func merge(_ id: Int64) {
@@ -798,11 +800,15 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         }
     }
 
-    private func reportProgress(_ transfer: Transfer) {
-        let done = transfer.manifest.ranges.filter { transfer.completed.contains($0.index) }.reduce(Int64(0)) { partial, range in
+    private func completedBytes(_ transfer: Transfer) -> Int64 {
+        transfer.manifest.ranges.filter { transfer.completed.contains($0.index) }.reduce(Int64(0)) { partial, range in
             let (sum, overflow) = partial.addingReportingOverflow(range.length)
             return overflow ? Int64.max : sum
         }
+    }
+
+    private func reportProgress(_ transfer: Transfer, force: Bool = false) {
+        let done = completedBytes(transfer)
         let active = transfer.received.values.reduce(Int64(0)) { partial, value in
             let (sum, overflow) = partial.addingReportingOverflow(max(0, value))
             return overflow ? Int64.max : sum
@@ -810,7 +816,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         let (combined, overflow) = done.addingReportingOverflow(active)
         let received = min(transfer.manifest.total, overflow ? Int64.max : combined)
         let now = Date.now
-        guard received >= transfer.manifest.total || now.timeIntervalSince(transfer.lastProgressEmission) >= 0.1 else { return }
+        guard force || received >= transfer.manifest.total || now.timeIntervalSince(transfer.lastProgressEmission) >= 0.1 else { return }
         transfer.lastProgressEmission = now
         onProgress?(transfer.record.id, transfer.generation,
                     received, transfer.manifest.total)

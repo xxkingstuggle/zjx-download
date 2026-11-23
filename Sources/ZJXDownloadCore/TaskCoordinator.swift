@@ -1425,8 +1425,8 @@ public final class TaskCoordinator {
         segmentedEngine.onFailed = { [weak self] id, generation, message in
             self?.transferFailed(id, generation: generation, message: message)
         }
-        segmentedEngine.onPaused = { [weak self] id, generation in
-            self?.transferPaused(id, generation: generation, resumeData: nil)
+        segmentedEngine.onPaused = { [weak self] id, generation, committedBytes in
+            self?.transferPaused(id, generation: generation, resumeData: nil, committedBytes: committedBytes)
         }
         segmentedEngine.onRangeUnsupported = { [weak self] id, generation in
             self?.fallbackToSingleConnection(id, generation: generation)
@@ -1569,6 +1569,8 @@ public final class TaskCoordinator {
         let previousGeneration = transferGenerations[id]
         let generation = nextTransferGeneration(for: id)
         pauseInProgress.removeValue(forKey: id)
+        progressSnapshots.removeValue(forKey: id)
+        liveMetrics.removeValue(forKey: id)
         record.status = .preparing
         record.lastError = nil
         record.startedAt = record.startedAt ?? .now
@@ -1767,17 +1769,26 @@ public final class TaskCoordinator {
         guard isCurrentGeneration(generation, for: id) else { return }
         guard let index = taskIndex(id) else { return }
         let now = Date.now
-        let prior = progressSnapshots[id] ?? (now.addingTimeInterval(-1), max(0, received - 1))
-        guard now.timeIntervalSince(prior.0) >= 0.2 || received >= (total ?? Int64.max) else { return }
-        let received = max(data.tasks[index].receivedBytes, received)
-        let elapsed = max(0.05, now.timeIntervalSince(prior.0))
-        let speed = Double(max(0, received - prior.1)) / elapsed
-        progressSnapshots[id] = (now, received)
+        let existingSnapshot = progressSnapshots[id]
+        if let prior = existingSnapshot {
+            guard now.timeIntervalSince(prior.0) >= 0.2 || received >= (total ?? Int64.max) else { return }
+        }
+        let clampedReceived = existingSnapshot == nil
+            ? max(0, received)
+            : max(data.tasks[index].receivedBytes, max(0, received))
+        let speed: Double
+        if let prior = existingSnapshot {
+            let elapsed = max(0.05, now.timeIntervalSince(prior.0))
+            speed = Double(max(0, clampedReceived - prior.1)) / elapsed
+        } else {
+            speed = 0
+        }
+        progressSnapshots[id] = (now, clampedReceived)
         let task = data.tasks[index]
         let averageElapsed = max(0.05, now.timeIntervalSince(task.startedAt ?? task.createdAt))
-        let averageSpeed = Double(max(0, received)) / averageElapsed
+        let averageSpeed = Double(max(0, clampedReceived)) / averageElapsed
         liveMetrics[id] = TransferMetric(bytesPerSecond: speed, averageBytesPerSecond: averageSpeed)
-        data.tasks[index].receivedBytes = max(0, received)
+        data.tasks[index].receivedBytes = clampedReceived
         if let total, total >= 0 { data.tasks[index].totalBytes = total }
         if now.timeIntervalSince(lastPersistTime) >= 1 {
             lastPersistTime = now
@@ -1955,6 +1966,8 @@ public final class TaskCoordinator {
 
     private func transferFailed(_ id: Int64, generation: UInt64, message: String) {
         guard isCurrentGeneration(generation, for: id), let index = taskIndex(id) else { return }
+        progressSnapshots.removeValue(forKey: id)
+        liveMetrics.removeValue(forKey: id)
         let message = URL(string: data.tasks[index].sourceURL).map { redactSensitiveURL(in: message, sourceURL: $0) } ?? "传输失败；任务源地址无效。"
         if message.localizedCaseInsensitiveContains("HTTP 401") || message.localizedCaseInsensitiveContains("HTTP 403") ||
             message.localizedCaseInsensitiveContains("远端文件与暂停前不同") || message.localizedCaseInsensitiveContains("不受支持") {
@@ -2033,15 +2046,18 @@ public final class TaskCoordinator {
         }
     }
 
-    private func transferPaused(_ id: Int64, generation: UInt64, resumeData: Data?) {
+    private func transferPaused(_ id: Int64, generation: UInt64, resumeData: Data?, committedBytes: Int64? = nil) {
         guard pauseInProgress[id] == generation else { return }
-        finishPause(id, generation: generation, resumeData: resumeData)
+        finishPause(id, generation: generation, resumeData: resumeData, committedBytes: committedBytes)
     }
 
-    private func finishPause(_ id: Int64, generation: UInt64, resumeData: Data?) {
+    private func finishPause(_ id: Int64, generation: UInt64, resumeData: Data?, committedBytes: Int64? = nil) {
         guard pauseInProgress[id] == generation, let index = taskIndex(id) else { return }
         let previous = data.tasks[index]
         var next = previous
+        if let committedBytes {
+            next.receivedBytes = max(0, committedBytes)
+        }
         var newResumeName: String?
         if let resumeData, !resumeData.isEmpty {
             do {
