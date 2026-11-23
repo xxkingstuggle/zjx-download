@@ -98,7 +98,7 @@ struct DownloadCLI {
             if !options["headers", default: ""].isEmpty { source["headers"] = parseHeaders(options["headers"]!) }
             let requestID = UUID().uuidString
             let body = try JSONSerialization.data(withJSONObject: ["requestId": requestID,
-                "items": [source], "options": ["silentStart": options["start"] == "true"]], options: [.sortedKeys])
+                "items": [source], "options": ["silentAdd": true, "silentStart": options["start"] == "true"]], options: [.sortedKeys])
             let result = try await request("POST", "/add", body: body, root: root, timeout: 130)
             let taskID = try decodeReceipt(result, requestID: requestID)
             print(taskID)
