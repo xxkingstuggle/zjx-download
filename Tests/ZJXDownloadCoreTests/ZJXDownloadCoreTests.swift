@@ -597,6 +597,7 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(readyPort, UInt16(port))
         let initialGeneration = server.activeListenerGeneration
         XCTAssertGreaterThan(initialGeneration, 0)
+        let socketBefore = try listeningSocketIdentity(port: port)
 
         let session = URLSession(configuration: NetworkConfiguration.loopbackSessionConfiguration())
         var pingReq = URLRequest(url: try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/ping")))
@@ -621,6 +622,7 @@ final class ZJXDownloadCoreTests: XCTestCase {
         server.restart(settings: settings)
         XCTAssertEqual(server.activeListenerGeneration, initialGeneration)
         XCTAssertEqual(server.listeningPort, UInt16(port))
+        XCTAssertEqual(try listeningSocketIdentity(port: port), socketBefore)
 
         let (_, unauthResp) = try await session.data(for: pingReq)
         XCTAssertEqual((unauthResp as? HTTPURLResponse)?.statusCode, 401)
@@ -630,6 +632,42 @@ final class ZJXDownloadCoreTests: XCTestCase {
         let (authedData, authedResp) = try await session.data(for: authedReq)
         XCTAssertEqual((authedResp as? HTTPURLResponse)?.statusCode, 200)
         XCTAssertEqual(String(data: authedData, encoding: .utf8), "pong")
+
+        let rotatedKey = "zjx-rotated-\(UUID().uuidString)"
+        try coordinator.credentials.write(rotatedKey, account: keyAccount)
+        server.restart(settings: settings)
+        XCTAssertEqual(server.activeListenerGeneration, initialGeneration)
+        XCTAssertEqual(try listeningSocketIdentity(port: port), socketBefore)
+
+        let (_, staleResp) = try await session.data(for: authedReq)
+        XCTAssertEqual((staleResp as? HTTPURLResponse)?.statusCode, 401)
+
+        var rotatedReq = pingReq
+        rotatedReq.setValue(rotatedKey, forHTTPHeaderField: "X-API-Key")
+        let (rotatedData, rotatedResp) = try await session.data(for: rotatedReq)
+        XCTAssertEqual((rotatedResp as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertEqual(String(data: rotatedData, encoding: .utf8), "pong")
+    }
+
+    private func listeningSocketIdentity(port: Int) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        process.arguments = ["-nP", "-a", "-p", String(ProcessInfo.processInfo.processIdentifier), "-iTCP:\(port)", "-sTCP:LISTEN"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        try process.run()
+        process.waitUntilExit()
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let lines = output.split(separator: "\n").map(String.init)
+        guard lines.count >= 2 else {
+            throw NSError(domain: "ZJXDownloadCoreTests", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing LISTEN socket for port \(port): \(output)"])
+        }
+        let columns = lines[1].split(whereSeparator: \.isWhitespace).map(String.init)
+        guard columns.count >= 9 else {
+            throw NSError(domain: "ZJXDownloadCoreTests", code: 3, userInfo: [NSLocalizedDescriptionKey: "Unexpected lsof line: \(lines[1])"])
+        }
+        return "\(columns[3])|\(columns[5])|\(columns[8])"
     }
 
     private func allocateLoopbackPort() throws -> Int {
