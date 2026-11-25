@@ -375,6 +375,12 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         statusEventRelay?.start()
         speedModeMonitor?.start()
         integrationServer?.restart(settings: coordinator.data.settings)
+        if CommandLine.arguments.contains("--background") {
+            DispatchQueue.main.async {
+                guard coordinator.pendingImportReview == nil else { return }
+                NSApp.hide(nil)
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -383,6 +389,10 @@ final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
         speedModeMonitor?.stop()
         integrationServer?.stop()
         statusEventRelay?.stop()
+        if let coordinator, coordinator.startupError == nil {
+            do { try coordinator.store.save(coordinator.data) }
+            catch { NSLog("zjx-download: failed to flush state on termination: %@", error.localizedDescription) }
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

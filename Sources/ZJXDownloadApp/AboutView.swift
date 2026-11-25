@@ -11,12 +11,14 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            if page == .about {
-                aboutPage
-            } else if page == .translators {
-                translatorsPage
-            } else {
-                licensesPage
+            ScrollView {
+                if page == .about {
+                    aboutPage
+                } else if page == .translators {
+                    translatorsPage
+                } else {
+                    licensesPage
+                }
             }
             if let linkError { Text(linkError).font(.caption).foregroundStyle(.red) }
             HStack {
@@ -26,7 +28,7 @@ struct AboutView: View {
             }
         }
         .padding(24)
-        .frame(width: 600, height: 360)
+        .frame(minWidth: 560, idealWidth: 600, minHeight: 350, idealHeight: 390)
     }
 
     private var aboutPage: some View {
@@ -73,29 +75,45 @@ struct AboutView: View {
     private var licensesPage: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("许可证与依赖").font(.title2.bold())
-            List {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("zjx-download App · Apache-2.0").font(.headline)
-                    Text("SwiftUI、AppKit、Foundation、Network.framework、Keychain 与 IOKit 均为 macOS 系统框架。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    externalLink("查看完整许可证", "https://github.com/xxkingstuggle/zjx-download/blob/main/LICENSE")
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Chrome 扩展 · Apache-2.0").font(.headline)
-                    Text("当前扩展为独立重写；打包时不含第三方运行时 npm 包。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    externalLink("扩展许可证", "https://github.com/xxkingstuggle/zjx-download/blob/main/browser-extension/LICENSE")
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("上游署名 · AB Download Manager").font(.headline)
-                    Text("保留上游项目及原作者署名。当前重写不包含上游运行时依赖。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    externalLink("上游项目", "https://github.com/amir1376/ab-download-manager-browser-integration")
-                }
+            VStack(alignment: .leading, spacing: 10) {
+                licenseCard(
+                    title: "zjx-download App · Apache-2.0",
+                    summary: "SwiftUI、AppKit、Foundation、Network.framework、Keychain 与 IOKit 均为 macOS 系统框架。",
+                    linkTitle: "查看完整许可证",
+                    linkURL: "https://github.com/xxkingstuggle/zjx-download/blob/main/LICENSE"
+                )
+                licenseCard(
+                    title: "Chrome 扩展 · Apache-2.0",
+                    summary: "当前扩展为独立重写；打包时不含第三方运行时 npm 包。",
+                    linkTitle: "扩展许可证",
+                    linkURL: "https://github.com/xxkingstuggle/zjx-download/blob/main/browser-extension/LICENSE"
+                )
+                licenseCard(
+                    title: "上游署名 · AB Download Manager",
+                    summary: "保留上游项目及原作者署名。当前重写不包含上游运行时依赖。",
+                    linkTitle: "上游项目",
+                    linkURL: "https://github.com/amir1376/ab-download-manager-browser-integration"
+                )
             }
             Text("完整许可证文件和构建依赖清单随源码及扩展包提供。")
                 .font(.caption).foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func licenseCard(title: String, summary: String, linkTitle: String, linkURL: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.headline)
+            Text(summary).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            externalLink(linkTitle, linkURL)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
+        )
     }
 
     private func externalLink(_ title: String, _ rawURL: String) -> some View {

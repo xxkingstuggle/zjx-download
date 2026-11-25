@@ -1,13 +1,18 @@
 import SwiftUI
 import AppKit
+import CryptoKit
 import UniformTypeIdentifiers
 import ZJXDownloadCore
 
 struct SettingsWindow: View {
+    private static let availableFontFamilies: [String] = NSFontManager.shared.availableFontFamilies.sorted()
+
     @Bindable var coordinator: TaskCoordinator
+    @Bindable var server: IntegrationServer
     @AppStorage("zjx-download.settings-tab") private var tab = "常规"
     @State private var keyInput = ""
     @State private var keyStatus = ""
+    @State private var hasStoredAPIKey = false
     @State private var legacyPreview: LegacyImportPreview?
     @State private var legacyError: String?
     @State private var updateResult: UpdateCheckResult?
@@ -18,6 +23,10 @@ struct SettingsWindow: View {
     @State private var proxyPasswordInput = ""
     @State private var proxyPasswordStatus = ""
     @State private var soundStatus = ""
+    @State private var proxyBypassDraft = ""
+    @State private var extensionsDraft = ""
+    @State private var ignoredPatternsDraft = ""
+    @State private var draftSaveNotice = ""
 
     var body: some View {
         NavigationSplitView {
@@ -44,6 +53,8 @@ struct SettingsWindow: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 800, minHeight: 520)
+        .onAppear { syncDraftsFromSettings() }
+        .onChange(of: tab) { _, _ in syncDraftsFromSettings() }
     }
 
     private var selectedTab: Binding<String?> {
@@ -112,7 +123,7 @@ struct SettingsWindow: View {
                     set: { value in coordinator.updateSettings { $0.fontName = value } }
                 )) {
                     Text("系统默认").tag(nil as String?)
-                    ForEach(NSFontManager.shared.availableFontFamilies.sorted(), id: \.self) { family in
+                    ForEach(Self.availableFontFamilies, id: \.self) { family in
                         Text(family).tag(Optional(family))
                     }
                 }
@@ -197,7 +208,7 @@ struct SettingsWindow: View {
                         Text("SOCKS5").tag(ProxyScheme.socks5)
                     }
                     TextField("代理服务器", text: binding(\.proxyHost))
-                    TextField("端口", value: binding(\.proxyPort), format: .number)
+                    TextField("端口", value: binding(\.proxyPort), format: .number.grouping(.never))
                     TextField("代理用户名", text: binding(\.proxyUsername))
                     VStack(alignment: .leading, spacing: 8) {
                         SecureField("代理密码（单独保存在钥匙串）", text: $proxyPasswordInput)
@@ -207,7 +218,12 @@ struct SettingsWindow: View {
                         }
                     }
                     if !proxyPasswordStatus.isEmpty { Text(proxyPasswordStatus).font(.caption).foregroundStyle(.secondary) }
-                    TextField("绕过的主机（逗号分隔）", text: stringArrayBinding(\.proxyBypass))
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            TextField("绕过的主机（逗号分隔，如 localhost, 127.0.0.1）", text: $proxyBypassDraft)
+                            Button("应用") { commitProxyBypassDraft() }
+                        }
+                    }
                 }
                 if coordinator.data.settings.proxyMode == .pac {
                     TextField("PAC URL", text: binding(\.pacURL))
@@ -215,14 +231,14 @@ struct SettingsWindow: View {
             }
 
             Section("限速与连接") {
-                TextField("全局限速（字节/秒，0 表示不限）", value: binding(\.globalSpeedLimitBytesPerSecond), format: .number)
+                TextField("全局限速（字节/秒，0 表示不限）", value: binding(\.globalSpeedLimitBytesPerSecond), format: .number.grouping(.never))
                 Picker("全局限速模式", selection: binding(\.globalSpeedLimitMode)) {
                     Text("关闭").tag(GlobalSpeedLimitMode.off)
                     Text("始终限速").tag(GlobalSpeedLimitMode.always)
                     Text("App 在后台且最近有系统交互时限速").tag(GlobalSpeedLimitMode.backgroundInteraction)
                 }
                 Stepper("每主机连接数：\(coordinator.data.settings.defaultConnectionCount)", value: binding(\.defaultConnectionCount), in: 1...256)
-                TextField("Range 最小分段（字节）", value: binding(\.minimumSegmentSizeBytes), format: .number)
+                TextField("Range 最小分段（字节）", value: binding(\.minimumSegmentSizeBytes), format: .number.grouping(.never))
                 Toggle("将 Range 任务细分后动态排队", isOn: binding(\.dynamicSegmentation))
                 Toggle("并行 Range 使用稀疏预分配", isOn: binding(\.sparseFiles))
             }
@@ -252,21 +268,57 @@ struct SettingsWindow: View {
     private var integration: some View {
         Form {
             Section("本机 API") {
+                LabeledContent("监听状态") {
+                    HStack(spacing: 8) {
+                        if let port = server.listeningPort {
+                            Label("正在监听 127.0.0.1:\(String(port))", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else if let lastError = server.lastError {
+                            Label(lastError, systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .lineLimit(2)
+                            Button("重试监听") { server.retryListening() }
+                        } else {
+                            Label(coordinator.data.settings.apiEnabled ? "正在启动…" : "已停用", systemImage: "circle")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 Toggle("启用本机 API", isOn: binding(\.apiEnabled))
-                TextField("监听端口（仅 127.0.0.1）", value: binding(\.apiPort), format: .number)
+                TextField("监听端口（仅 127.0.0.1）", value: binding(\.apiPort), format: .number.grouping(.never))
                     .disabled(!coordinator.data.settings.apiEnabled)
                 Toggle("要求 API Key", isOn: binding(\.apiRequiresKey))
                     .disabled(!coordinator.data.settings.apiEnabled)
-                SecureField("API Key", text: $keyInput)
+                SecureField(hasStoredAPIKey ? "输入新 API Key（已配置）" : "输入或生成 API Key", text: $keyInput)
                     .disabled(!coordinator.data.settings.apiRequiresKey)
-                HStack {
+                HStack(spacing: 8) {
                     Button("保存 Key") { saveKey() }
-                    if !keyStatus.isEmpty { Text(keyStatus).foregroundStyle(.secondary) }
+                        .disabled(!coordinator.data.settings.apiRequiresKey)
+                    Button("生成随机 Key") { generateAndSaveKey() }
+                        .disabled(!coordinator.data.settings.apiRequiresKey)
+                    Button("复制已存 Key") { copyStoredKey() }
+                        .disabled(!hasStoredAPIKey)
+                    Button("清除 Key", role: .destructive) { clearStoredKey() }
+                        .disabled(!hasStoredAPIKey)
+                }
+                if !keyStatus.isEmpty {
+                    Text(keyStatus).font(.caption).foregroundStyle(.secondary)
                 }
             }
 
             Section("Chrome 扩展") {
-                Text("Chrome 扩展使用本机 API；安装说明和扩展版本识别见交付目录的 `docs/native-rebuild/chrome-install.md`。扩展权限只在用户启用相应功能时申请。")
+                LabeledContent("集成地址") {
+                    HStack(spacing: 8) {
+                        Text("http://127.0.0.1:\(String(coordinator.data.settings.apiPort))")
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                        Button("复制") {
+                            copyToPasteboard("http://127.0.0.1:\(String(coordinator.data.settings.apiPort))")
+                            keyStatus = "已复制本机集成地址。"
+                        }
+                    }
+                }
+                Text("Chrome 扩展通过本机 127.0.0.1 API 与 Native Messaging 通信；修改端口或开启 API Key 后，请在扩展选项页同步填写对应端口与密钥。扩展权限只在启用相应功能时申请。")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -280,9 +332,37 @@ struct SettingsWindow: View {
                 TextField("自动接管绕过键", text: extensionBinding(\.bypassKey))
                 Toggle("自动接管浏览器文件下载", isOn: extensionBinding(\.autoCapture))
                 Toggle("关闭已接管的新标签页", isOn: extensionBinding(\.closeCapturedTab))
-                TextField("自动接管最小文件大小（KB）", value: extensionBinding(\.minimumSizeKB), format: .number)
-                TextField("自动接管扩展名（逗号分隔）", text: extensionArrayBinding(\.extensions))
-                TextField("忽略规则（每行一项）", text: extensionArrayBinding(\.ignoredPatterns))
+                TextField("自动接管最小文件大小（KB）", value: extensionBinding(\.minimumSizeKB), format: .number.grouping(.never))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("自动接管扩展名（逗号或空格分隔）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("zip, dmg, pkg, iso, mp4, …", text: $extensionsDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { commitExtensionListDrafts() }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("忽略规则（每行一项，支持 * 通配符）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $ignoredPatternsDraft)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 72, maxHeight: 110)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.65), lineWidth: 0.75)
+                        )
+                }
+                HStack {
+                    Button("应用扩展名与忽略规则") { commitExtensionListDrafts() }
+                        .buttonStyle(.borderedProminent)
+                    if !draftSaveNotice.isEmpty {
+                        Text(draftSaveNotice)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Section("网页候选与启动") {
@@ -368,11 +448,41 @@ struct SettingsWindow: View {
     private func extensionBinding<Value>(_ path: WritableKeyPath<ExtensionSettings, Value>) -> Binding<Value> {
         Binding(get: { coordinator.data.settings.extensionSettings[keyPath: path] }, set: { value in coordinator.updateSettings { $0.extensionSettings[keyPath: path] = value } })
     }
-    private func stringArrayBinding(_ path: WritableKeyPath<AppSettings, [String]>) -> Binding<String> {
-        Binding(get: { coordinator.data.settings[keyPath: path].joined(separator: ", ") }, set: { text in coordinator.updateSettings { $0[keyPath: path] = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } } })
+    private func syncDraftsFromSettings() {
+        proxyBypassDraft = coordinator.data.settings.proxyBypass.joined(separator: ", ")
+        extensionsDraft = coordinator.data.settings.extensionSettings.extensions.joined(separator: ", ")
+        ignoredPatternsDraft = coordinator.data.settings.extensionSettings.ignoredPatterns.joined(separator: "\n")
+        do {
+            let existing = try coordinator.credentials.read(account: coordinator.data.settings.apiKeyAccount)
+            hasStoredAPIKey = !(existing?.isEmpty ?? true)
+        } catch {
+            hasStoredAPIKey = false
+        }
     }
-    private func extensionArrayBinding(_ path: WritableKeyPath<ExtensionSettings, [String]>) -> Binding<String> {
-        Binding(get: { coordinator.data.settings.extensionSettings[keyPath: path].joined(separator: ", ") }, set: { text in coordinator.updateSettings { $0.extensionSettings[keyPath: path] = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty } } })
+    private func commitProxyBypassDraft() {
+        let entries = proxyBypassDraft
+            .split(whereSeparator: { $0 == "," || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        coordinator.updateSettings { $0.proxyBypass = entries }
+        proxyBypassDraft = entries.joined(separator: ", ")
+    }
+    private func commitExtensionListDrafts() {
+        let exts = extensionsDraft
+            .split(whereSeparator: { $0 == "," || $0.isWhitespace })
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased() }
+            .filter { !$0.isEmpty }
+        let ignored = ignoredPatternsDraft
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        coordinator.updateSettings {
+            $0.extensionSettings.extensions = exts
+            $0.extensionSettings.ignoredPatterns = ignored
+        }
+        extensionsDraft = exts.joined(separator: ", ")
+        ignoredPatternsDraft = ignored.joined(separator: "\n")
+        draftSaveNotice = "已保存 \(exts.count) 个扩展名与 \(ignored.count) 条忽略规则。"
     }
     private func chooseDirectory() { let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; if panel.runModal() == .OK, let url = panel.url { coordinator.updateSettings { $0.defaultDownloadDirectory = url.path } } }
     private func soundRow(_ title: String, path: WritableKeyPath<AppSettings, String>) -> some View {
@@ -420,8 +530,45 @@ struct SettingsWindow: View {
         } catch { proxyPasswordStatus = "清除失败：\(error.localizedDescription)" }
     }
     private func saveKey() {
-        do { try coordinator.credentials.write(keyInput.isEmpty ? nil : keyInput, account: coordinator.data.settings.apiKeyAccount); keyStatus = keyInput.isEmpty ? "已移除" : "已保存到钥匙串"; keyInput = "" }
-        catch { keyStatus = error.localizedDescription }
+        let trimmed = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try coordinator.credentials.write(trimmed.isEmpty ? nil : trimmed, account: coordinator.data.settings.apiKeyAccount)
+            hasStoredAPIKey = !trimmed.isEmpty
+            keyStatus = trimmed.isEmpty ? "已从钥匙串移除 API Key。" : "已保存到钥匙串并立即生效。"
+            keyInput = ""
+        } catch { keyStatus = error.localizedDescription }
+    }
+    private func generateAndSaveKey() {
+        let key = SymmetricKey(size: .bits256)
+        let token = key.withUnsafeBytes { bytes in
+            bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        do {
+            try coordinator.credentials.write(token, account: coordinator.data.settings.apiKeyAccount)
+            hasStoredAPIKey = true
+            keyInput = ""
+            copyToPasteboard(token)
+            keyStatus = "已生成 256 位随机密钥、存入钥匙串并复制到剪贴板。"
+        } catch { keyStatus = error.localizedDescription }
+    }
+    private func copyStoredKey() {
+        do {
+            guard let stored = try coordinator.credentials.read(account: coordinator.data.settings.apiKeyAccount), !stored.isEmpty else {
+                hasStoredAPIKey = false
+                keyStatus = "钥匙串中尚未保存 API Key。"
+                return
+            }
+            copyToPasteboard(stored)
+            keyStatus = "已复制 API Key 到剪贴板。"
+        } catch { keyStatus = error.localizedDescription }
+    }
+    private func clearStoredKey() {
+        do {
+            try coordinator.credentials.write(nil, account: coordinator.data.settings.apiKeyAccount)
+            hasStoredAPIKey = false
+            keyInput = ""
+            keyStatus = "已清除钥匙串中的 API Key。"
+        } catch { keyStatus = error.localizedDescription }
     }
     private func previewLegacy() { do { legacyPreview = try coordinator.previewLegacyImport() } catch { legacyError = error.localizedDescription } }
     private func importLegacy() {
@@ -556,7 +703,7 @@ private struct HostRulesSettingsView: View {
                             TextField("User-Agent（留空使用全局值）", text: $draft.userAgent)
                             HStack {
                                 Stepper("连接数：\(draft.connectionCount == 0 ? "使用全局" : String(draft.connectionCount))", value: $draft.connectionCount, in: 0...256)
-                                TextField("速度上限（B/s，0 不限）", value: $draft.speedLimit, format: .number)
+                                TextField("速度上限（B/s，0 不限）", value: $draft.speedLimit, format: .number.grouping(.never))
                             }
                             Text("额外请求头（每行 名称: 值；认证头单独存入钥匙串）").font(.caption).foregroundStyle(.secondary)
                             TextEditor(text: $draft.headersText).font(.system(.body, design: .monospaced)).frame(minHeight: 52, maxHeight: 90).border(.quaternary)
@@ -641,7 +788,10 @@ private struct HostRulesSettingsView: View {
                     applied.append(edit.account)
                 }
             } catch {
-                for account in applied.reversed() { try? coordinator.credentials.writeData(originals[account] ?? nil, account: account) }
+                for account in applied.reversed() {
+                    do { try coordinator.credentials.writeData(originals[account] ?? nil, account: account) }
+                    catch { NSLog("zjx-download: failed to roll back host credential %@: %@", account, error.localizedDescription) }
+                }
                 throw error
             }
             coordinator.updateSettings { $0.hostRules = rules }

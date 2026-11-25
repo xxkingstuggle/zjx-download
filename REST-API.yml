@@ -89,7 +89,7 @@ components:
           enum: [http, hls]
         status:
           type: string
-          enum: [queued, probing, downloading, merging, verifying, paused, completed, failed, cancelled]
+          enum: [queued, preparing, downloading, paused, completed, failed, cancelled]
         name:
           type: string
         link:
