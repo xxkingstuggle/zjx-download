@@ -128,7 +128,13 @@ public enum InputImport {
                             headers[name] = String(value[value.index(after: split)...]).trimmingCharacters(in: .whitespaces)
                         case "-b", "--cookie":
                             guard !value.contains("\r"), !value.contains("\n") else { throw ValidationError("Cookie 请求头不能换行。") }
-                            headers["Cookie"] = value
+                            let existingKey = headers.keys.first { $0.caseInsensitiveCompare("Cookie") == .orderedSame }
+                            let existing = existingKey.flatMap { headers.removeValue(forKey: $0) }
+                            if let existing, !existing.isEmpty {
+                                headers["Cookie"] = "\(existing); \(value)"
+                            } else {
+                                headers["Cookie"] = value
+                            }
                         case "-u", "--user": headers["Authorization"] = "Basic " + Data(value.utf8).base64EncodedString()
                         case "-A", "--user-agent": headers["User-Agent"] = value
                         case "-e", "--referer": headers["Referer"] = value; page = URL(string: value)

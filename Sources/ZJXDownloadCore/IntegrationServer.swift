@@ -93,6 +93,7 @@ public final class IntegrationServer {
 
     public private(set) var listeningPort: UInt16?
     public private(set) var lastError: String?
+    public var activeListenerGeneration: UInt64 { listenerGeneration }
 
     private static let allowedExtensionOrigin = "chrome-extension://ikfafcgjoghicpkoolbofdaoonendhak"
     private static let maximumHeaderBytes = 32 * 1024

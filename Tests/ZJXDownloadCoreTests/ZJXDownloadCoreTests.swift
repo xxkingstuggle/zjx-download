@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import Network
 import XCTest
@@ -345,7 +346,8 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(socksDict?[kCFNetworkProxiesSOCKSEnable as String] as? Int, 1)
         XCTAssertEqual(socksDict?[kCFNetworkProxiesSOCKSProxy as String] as? String, "127.0.0.1")
         XCTAssertEqual(socksDict?[kCFNetworkProxiesSOCKSPort as String] as? Int, 1080)
-        XCTAssertNil(socksDict?[kCFNetworkProxiesHTTPEnable as String])
+        XCTAssertEqual(socksDict?[kCFNetworkProxiesHTTPEnable as String] as? Int, 0)
+        XCTAssertEqual(socksDict?[kCFNetworkProxiesHTTPSEnable as String] as? Int, 0)
 
         var httpSettings = AppSettings()
         httpSettings.proxyMode = .manual
@@ -358,15 +360,22 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(httpDict?[kCFNetworkProxiesHTTPEnable as String] as? Int, 1)
         XCTAssertEqual(httpDict?[kCFNetworkProxiesHTTPPort as String] as? Int, 8080)
         XCTAssertEqual(httpDict?[kCFNetworkProxiesHTTPSEnable as String] as? Int, 1)
+        XCTAssertEqual(httpDict?[kCFNetworkProxiesSOCKSEnable as String] as? Int, 0)
 
         var directSettings = AppSettings()
         directSettings.proxyMode = .direct
         let directConfig = URLSessionConfiguration.ephemeral
         NetworkConfiguration.applyProxy(settings: directSettings, proxyPassword: "", to: directConfig)
-        XCTAssertEqual(directConfig.connectionProxyDictionary?.isEmpty, true)
+        let directDict = directConfig.connectionProxyDictionary as? [String: Any]
+        XCTAssertEqual(directDict?[kCFNetworkProxiesHTTPEnable as String] as? Int, 0)
+        XCTAssertEqual(directDict?[kCFNetworkProxiesHTTPSEnable as String] as? Int, 0)
+        XCTAssertEqual(directDict?[kCFNetworkProxiesSOCKSEnable as String] as? Int, 0)
 
         let loopback = NetworkConfiguration.loopbackSessionConfiguration()
-        XCTAssertEqual(loopback.connectionProxyDictionary?.isEmpty, true)
+        let loopbackDict = loopback.connectionProxyDictionary as? [String: Any]
+        XCTAssertEqual(loopbackDict?[kCFNetworkProxiesHTTPEnable as String] as? Int, 0)
+        XCTAssertEqual(loopbackDict?[kCFNetworkProxiesHTTPSEnable as String] as? Int, 0)
+        XCTAssertEqual(loopbackDict?[kCFNetworkProxiesSOCKSEnable as String] as? Int, 0)
     }
 
     func testNetworkConfigurationConstantTimeEqual() {
@@ -473,7 +482,7 @@ final class ZJXDownloadCoreTests: XCTestCase {
         let storeDir = tempDirectory.appendingPathComponent("ro-resume-store", isDirectory: true)
         let writable = try StateStore(directory: storeDir)
         let savedName = try writable.saveResumeData(Data("resume-bytes".utf8), taskID: 42)
-        let savedFile = storeDir.appendingPathComponent("resume", isDirectory: true).appendingPathComponent(savedName)
+        let savedFile = writable.resumeDataURL(for: savedName)
         XCTAssertTrue(FileManager.default.fileExists(atPath: savedFile.path))
 
         let readOnly = StateStore.readOnlyRecovery(directory: storeDir)
@@ -531,9 +540,16 @@ final class ZJXDownloadCoreTests: XCTestCase {
     func testDownloadEngineProbeFallsBackFromHead403AndParsesRFC5987Filename() async throws {
         let stub = try LocalHTTPStubServer { requestLine in
             if requestLine.hasPrefix("HEAD ") {
+                if requestLine.contains("/partial") {
+                    return "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                }
                 return "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             }
-            return "HTTP/1.1 200 OK\r\nContent-Length: 42\r\nAccept-Ranges: bytes\r\nContent-Disposition: attachment; filename*=UTF-8''%E6%B5%8B%E8%AF%95%20%E6%96%87%E4%BB%B6.zip\r\nConnection: close\r\n\r\n"
+            if requestLine.contains("/partial") {
+                return "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 0-0/1024\r\nContent-Length: 1\r\nConnection: close\r\n\r\nx"
+            }
+            let body = String(repeating: "x", count: 42)
+            return "HTTP/1.1 200 OK\r\nContent-Length: 42\r\nAccept-Ranges: bytes\r\nContent-Disposition: attachment; filename*=UTF-8''%E6%B5%8B%E8%AF%95%20%E6%96%87%E4%BB%B6.zip\r\nConnection: close\r\n\r\n\(body)"
         }
         defer { stub.stop() }
         let port = try await stub.waitUntilReady()
@@ -545,6 +561,11 @@ final class ZJXDownloadCoreTests: XCTestCase {
         XCTAssertEqual(info.suggestedName, "测试 文件.zip")
         XCTAssertEqual(info.contentLength, 42)
         XCTAssertTrue(info.supportsRanges)
+
+        let partialURL = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/partial"))
+        let partialInfo = try await engine.probe(partialURL, headers: [:], userAgent: "zjx-test", settings: settings)
+        XCTAssertEqual(partialInfo.contentLength, 1024)
+        XCTAssertTrue(partialInfo.supportsRanges)
     }
 
     @MainActor
@@ -553,7 +574,7 @@ final class ZJXDownloadCoreTests: XCTestCase {
         let serviceName = "com.zjx.download.test.\(UUID().uuidString)"
         let coordinator = TaskCoordinator(directory: storeDir, credentialService: serviceName)
         let server = IntegrationServer(coordinator: coordinator)
-        let port = Int.random(in: 41_000...59_000)
+        let port = try allocateLoopbackPort()
         let apiKey = "zjx-test-key-\(UUID().uuidString)"
         let keyAccount = coordinator.data.settings.apiKeyAccount
         defer {
@@ -570,9 +591,12 @@ final class ZJXDownloadCoreTests: XCTestCase {
         var readyPort: UInt16?
         for _ in 0..<60 {
             if let bound = server.listeningPort { readyPort = bound; break }
+            if let error = server.lastError { XCTFail("IntegrationServer failed to bind: \(error)"); break }
             try await Task.sleep(for: .milliseconds(50))
         }
         XCTAssertEqual(readyPort, UInt16(port))
+        let initialGeneration = server.activeListenerGeneration
+        XCTAssertGreaterThan(initialGeneration, 0)
 
         let session = URLSession(configuration: NetworkConfiguration.loopbackSessionConfiguration())
         var pingReq = URLRequest(url: try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/ping")))
@@ -595,6 +619,7 @@ final class ZJXDownloadCoreTests: XCTestCase {
         try coordinator.credentials.write(apiKey, account: keyAccount)
         settings.apiRequiresKey = true
         server.restart(settings: settings)
+        XCTAssertEqual(server.activeListenerGeneration, initialGeneration)
         XCTAssertEqual(server.listeningPort, UInt16(port))
 
         let (_, unauthResp) = try await session.data(for: pingReq)
@@ -605,6 +630,30 @@ final class ZJXDownloadCoreTests: XCTestCase {
         let (authedData, authedResp) = try await session.data(for: authedReq)
         XCTAssertEqual((authedResp as? HTTPURLResponse)?.statusCode, 200)
         XCTAssertEqual(String(data: authedData, encoding: .utf8), "pong")
+    }
+
+    private func allocateLoopbackPort() throws -> Int {
+        let descriptor = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        guard descriptor >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { Darwin.close(descriptor) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = 0
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        var boundAddress = address
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let bindResult = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(descriptor, $0, length) }
+        }
+        guard bindResult == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        let nameResult = withUnsafeMutablePointer(to: &boundAddress) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.getsockname(descriptor, $0, &length) }
+        }
+        guard nameResult == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        return Int(UInt16(bigEndian: boundAddress.sin_port))
     }
 }
 
@@ -633,7 +682,7 @@ private final class LocalHTTPStubServer: @unchecked Sendable {
                 let text = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
                 let firstLine = text.components(separatedBy: "\r\n").first ?? ""
                 let response = self.handler(firstLine)
-                connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
+                connection.send(content: Data(response.utf8), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in
                     connection.cancel()
                 })
             }

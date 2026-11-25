@@ -193,8 +193,35 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
             throw DownloadEngineError.httpStatus(http.statusCode)
         }
         if [403, 405, 501].contains(http.statusCode) {
-            // A HEAD error page is not evidence about the GET resource. Keep its
-            // metadata unknown and force the eventual task through the original URL.
+            var fallbackRequest = URLRequest(url: url, timeoutInterval: 30)
+            fallbackRequest.httpMethod = "GET"
+            fallbackRequest.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+            if !userAgent.isEmpty { fallbackRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+            for (name, value) in headers where name.caseInsensitiveCompare("Host") != .orderedSame
+                && name.caseInsensitiveCompare("Range") != .orderedSame {
+                fallbackRequest.setValue(value, forHTTPHeaderField: name)
+            }
+            fallbackRequest.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+            do {
+                let (bytes, fallbackResponse) = try await session.bytes(for: fallbackRequest)
+                defer { bytes.task.cancel() }
+                if let fallbackHTTP = fallbackResponse as? HTTPURLResponse, (200..<300).contains(fallbackHTTP.statusCode) {
+                    let isPartial = fallbackHTTP.statusCode == 206
+                    let length = isPartial
+                        ? Self.parseContentRange(fallbackHTTP.value(forHTTPHeaderField: "Content-Range"))?.totalLength
+                        : fallbackHTTP.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init).flatMap { $0 >= 0 ? $0 : nil }
+                    let ranges = isPartial || fallbackHTTP.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased().contains("bytes") == true
+                    let disposition = fallbackHTTP.value(forHTTPHeaderField: "Content-Disposition")
+                    let name = Self.fileName(from: disposition) ?? Self.fileName(from: fallbackHTTP.url?.absoluteString) ?? Self.fileName(from: url.absoluteString)
+                    return RemoteResourceInfo(contentLength: length, supportsRanges: ranges,
+                                              etag: fallbackHTTP.value(forHTTPHeaderField: "ETag"),
+                                              lastModified: fallbackHTTP.value(forHTTPHeaderField: "Last-Modified"),
+                                              contentType: fallbackHTTP.value(forHTTPHeaderField: "Content-Type"),
+                                              suggestedName: name, finalURL: fallbackHTTP.url ?? url)
+                }
+            } catch {
+                if error is CancellationError { throw error }
+            }
             return RemoteResourceInfo(contentLength: nil, supportsRanges: false, etag: nil,
                                       lastModified: nil, contentType: nil,
                                       suggestedName: Self.fileName(from: url.absoluteString), finalURL: url)
