@@ -18,7 +18,7 @@ public enum NetworkConfiguration {
         let hostRule = matchingHostRule(for: url, settings: settings)
         if let rule = hostRule {
             for (name, value) in rule.headers where !headers.keys.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) { headers[name] = value }
-            if agent.isEmpty { agent = rule.userAgent }
+            if !rule.userAgent.isEmpty { agent = rule.userAgent }
         }
         if !agent.isEmpty, !headers.keys.contains(where: { $0.caseInsensitiveCompare("User-Agent") == .orderedSame }) { headers["User-Agent"] = agent }
         headers = headers.filter { $0.key.caseInsensitiveCompare("Host") != .orderedSame }
@@ -27,8 +27,9 @@ public enum NetworkConfiguration {
         let publicHeaders = headers.filter { !sensitiveHeaderNames.contains($0.key.lowercased()) }
         let hostLimit = hostRule?.speedLimitBytesPerSecond ?? 0
         let limits = [taskLimit, settings.globalSpeedLimitBytesPerSecond, hostLimit].filter { $0 > 0 }
-        let ruleConnections = taskConnectionCount.map { max(1, min($0, 256)) }
-            ?? hostRule?.connectionCount.map { max(1, min($0, 256)) } ?? 0
+        let normalizedTaskConnections = taskConnectionCount.flatMap { $0 > 0 ? max(1, min($0, 256)) : nil }
+        let normalizedHostConnections = hostRule?.connectionCount.flatMap { $0 > 0 ? max(1, min($0, 256)) : nil }
+        let ruleConnections = normalizedTaskConnections ?? normalizedHostConnections ?? 0
         return EffectiveRequest(headers: publicHeaders, credentialHeaders: secrets, userAgent: agent,
                                 speedLimit: limits.min() ?? 0, connectionCount: ruleConnections)
     }
@@ -78,16 +79,100 @@ public enum NetworkConfiguration {
     }
 
     public static func wildcard(_ pattern: String, value: String) -> Bool {
-        let p = pattern.lowercased()
-        let v = value.lowercased()
-        let pieces = p.split(separator: "*", omittingEmptySubsequences: false).map(String.init)
-        var cursor = v.startIndex
-        for (index, piece) in pieces.enumerated() {
-            guard let match = v.range(of: piece, range: cursor..<v.endIndex) else { return false }
-            if index == 0 && match.lowerBound != v.startIndex { return false }
-            cursor = match.upperBound
+        let trimmed = pattern.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let pat = Array(trimmed.lowercased())
+        let str = Array(value.lowercased())
+        var patIndex = 0
+        var strIndex = 0
+        var starIndex: Int?
+        var matchIndex = 0
+
+        while strIndex < str.count {
+            if patIndex < pat.count && pat[patIndex] == str[strIndex] {
+                patIndex += 1
+                strIndex += 1
+            } else if patIndex < pat.count && pat[patIndex] == "*" {
+                starIndex = patIndex
+                matchIndex = strIndex
+                patIndex += 1
+            } else if let star = starIndex {
+                patIndex = star + 1
+                matchIndex += 1
+                strIndex = matchIndex
+            } else {
+                return false
+            }
         }
-        return p.hasSuffix("*") || cursor == v.endIndex
+        while patIndex < pat.count && pat[patIndex] == "*" {
+            patIndex += 1
+        }
+        return patIndex == pat.count
+    }
+
+    public static func applyProxy(settings: AppSettings, proxyPassword: String, to config: URLSessionConfiguration) {
+        switch settings.proxyMode {
+        case .direct:
+            config.connectionProxyDictionary = ["HTTPEnable": 0, "HTTPSEnable": 0, "SOCKSEnable": 0]
+        case .system:
+            config.connectionProxyDictionary = nil
+        case .manual:
+            if settings.proxyScheme == .socks5 {
+                var proxy: [AnyHashable: Any] = [
+                    "SOCKSEnable": 1,
+                    "SOCKSProxy": settings.proxyHost,
+                    "SOCKSPort": settings.proxyPort,
+                    "HTTPEnable": 0,
+                    "HTTPSEnable": 0,
+                    "ExceptionsList": settings.proxyBypass
+                ]
+                if !settings.proxyUsername.isEmpty {
+                    proxy["SOCKSUser"] = settings.proxyUsername
+                    proxy["SOCKSPassword"] = proxyPassword
+                }
+                config.connectionProxyDictionary = proxy
+            } else {
+                var proxy: [AnyHashable: Any] = [
+                    "HTTPEnable": 1,
+                    "HTTPProxy": settings.proxyHost,
+                    "HTTPPort": settings.proxyPort,
+                    "HTTPSEnable": 1,
+                    "HTTPSProxy": settings.proxyHost,
+                    "HTTPSPort": settings.proxyPort,
+                    "SOCKSEnable": 0,
+                    "ExceptionsList": settings.proxyBypass
+                ]
+                if !settings.proxyUsername.isEmpty {
+                    proxy["HTTPProxyUsername"] = settings.proxyUsername
+                    proxy["HTTPProxyPassword"] = proxyPassword
+                    proxy["HTTPSProxyUsername"] = settings.proxyUsername
+                    proxy["HTTPSProxyPassword"] = proxyPassword
+                }
+                config.connectionProxyDictionary = proxy
+            }
+        case .pac:
+            config.connectionProxyDictionary = ["ProxyAutoConfigEnable": 1, "ProxyAutoConfigURLString": settings.pacURL]
+        }
+    }
+
+    public static func loopbackSessionConfiguration() -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.connectionProxyDictionary = ["HTTPEnable": 0, "HTTPSEnable": 0, "SOCKSEnable": 0]
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return config
+    }
+
+    public static func constantTimeEqual(_ lhs: Data, _ rhs: Data) -> Bool {
+        let maxCount = max(lhs.count, rhs.count)
+        var diff: UInt8 = lhs.count == rhs.count ? 0 : 1
+        for index in 0..<maxCount {
+            let left: UInt8 = index < lhs.count ? lhs[lhs.index(lhs.startIndex, offsetBy: index)] : 0
+            let right: UInt8 = index < rhs.count ? rhs[rhs.index(rhs.startIndex, offsetBy: index)] : 0
+            diff |= left ^ right
+        }
+        return diff == 0
     }
 }
 
@@ -100,18 +185,28 @@ public struct ValidationError: Error, LocalizedError, Sendable {
 /// Shares the configured global byte budget across HTTP, Range and HLS transfers.
 public actor SharedGlobalRateLimiter {
     public static let shared = SharedGlobalRateLimiter()
+    private static let maximumReservationHorizon: TimeInterval = 5.0
     private var reservedUntil: [String: Date] = [:]
 
     public func resetGlobalReservation() {
         reservedUntil["global"] = .now
     }
 
+    public func resetBucket(_ bucket: String) {
+        reservedUntil.removeValue(forKey: bucket)
+    }
+
+    public func resetAll() {
+        reservedUntil.removeAll(keepingCapacity: true)
+    }
+
     public func reserve(bytes: Int64, limit: Int64, bucket: String = "global") -> TimeInterval {
         guard bytes > 0, limit > 0 else { return 0 }
         let now = Date.now
         let start = max(now, reservedUntil[bucket] ?? now)
-        let end = start.addingTimeInterval(Double(bytes) / Double(limit))
-        reservedUntil[bucket] = end
-        return max(0, end.timeIntervalSince(now))
+        let proposedEnd = start.addingTimeInterval(Double(bytes) / Double(limit))
+        let cappedEnd = min(proposedEnd, now.addingTimeInterval(Self.maximumReservationHorizon))
+        reservedUntil[bucket] = cappedEnd
+        return max(0, cappedEnd.timeIntervalSince(now))
     }
 }

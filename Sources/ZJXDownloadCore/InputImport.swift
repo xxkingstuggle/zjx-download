@@ -116,7 +116,7 @@ public enum InputImport {
                     if ["-L", "--location", "--compressed", "-s", "--silent", "-S", "--show-error", "-f", "--fail", "-O", "--remote-name"].contains(token) {
                         index += 1; continue
                     }
-                    if ["-H", "--header", "-u", "--user", "-A", "--user-agent", "-e", "--referer", "-o", "--output", "--url", "-X", "--request"].contains(token) {
+                    if ["-H", "--header", "-b", "--cookie", "-u", "--user", "-A", "--user-agent", "-e", "--referer", "-o", "--output", "--url", "-X", "--request"].contains(token) {
                         index += 1
                         guard index < tokens.count else { throw ValidationError("\(token) 缺少参数。") }
                         let value = tokens[index]
@@ -126,6 +126,9 @@ public enum InputImport {
                             let name = String(value[..<split]).trimmingCharacters(in: .whitespaces)
                             guard !name.isEmpty, !value.contains("\r"), !value.contains("\n") else { throw ValidationError("请求头格式无效。") }
                             headers[name] = String(value[value.index(after: split)...]).trimmingCharacters(in: .whitespaces)
+                        case "-b", "--cookie":
+                            guard !value.contains("\r"), !value.contains("\n") else { throw ValidationError("Cookie 请求头不能换行。") }
+                            headers["Cookie"] = value
                         case "-u", "--user": headers["Authorization"] = "Basic " + Data(value.utf8).base64EncodedString()
                         case "-A", "--user-agent": headers["User-Agent"] = value
                         case "-e", "--referer": headers["Referer"] = value; page = URL(string: value)

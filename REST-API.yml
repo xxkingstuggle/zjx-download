@@ -1,48 +1,393 @@
 openapi: 3.0.0
 info:
-  title: Historical upstream Download Service API
-  version: 1.0.0
+  title: zjx-download Local Integration API
+  version: 2.0.4
   description: >-
-    Historical upstream 1.0 specification, preserved for reference. This is not
-    the current zjx-download contract. See docs/README.md and
-    Sources/ZJXDownloadCore/IntegrationServer.swift. Current add endpoints return
-    structured JSON receipts rather than the plain OK responses documented below.
+    Loopback-only HTTP/1.1 integration API served by zjx-download on 127.0.0.1.
+    Matches Sources/ZJXDownloadCore/IntegrationServer.swift. When apiRequiresKey
+    is enabled, all endpoints except CORS preflight (OPTIONS) require the
+    X-API-Key header.
 servers:
-  - url: http://localhost:15151
-    description: Default server running on port 15151
+  - url: http://127.0.0.1:15151
+    description: Default loopback listener (configurable 1024-65535)
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    ErrorReceipt:
+      type: object
+      required: [error, accepted, acceptedCount, acceptedTaskIDs, items]
+      properties:
+        requestId:
+          type: string
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+        accepted:
+          type: boolean
+          enum: [false]
+        acceptedCount:
+          type: integer
+          enum: [0]
+        acceptedTaskIDs:
+          type: array
+          items:
+            type: integer
+        items:
+          type: array
+          items:
+            type: object
+    ImportItemResult:
+      type: object
+      required: [index, taskID, error]
+      properties:
+        index:
+          type: integer
+        taskID:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+    ImportReceipt:
+      type: object
+      required: [requestId, accepted, acceptedCount, acceptedTaskIDs, items]
+      properties:
+        requestId:
+          type: string
+        accepted:
+          type: boolean
+        acceptedCount:
+          type: integer
+        acceptedTaskIDs:
+          type: array
+          items:
+            type: integer
+        declined:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportItemResult"
+    TaskSummary:
+      type: object
+      required: [id, kind, status, name, link, folder, receivedBytes, speedBytesPerSecond, averageSpeedBytesPerSecond, createdAt]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [http, hls]
+        status:
+          type: string
+          enum: [queued, probing, downloading, merging, verifying, paused, completed, failed, cancelled]
+        name:
+          type: string
+        link:
+          type: string
+        folder:
+          type: string
+        receivedBytes:
+          type: integer
+        totalBytes:
+          type: integer
+        speedBytesPerSecond:
+          type: integer
+        averageSpeedBytesPerSecond:
+          type: integer
+        progress:
+          type: number
+        etaSeconds:
+          type: integer
+        lastError:
+          type: string
+        queueId:
+          type: integer
+        categoryId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    ServiceStatus:
+      type: object
+      required: [ok, version, apiRequiresKey, activeCount, queuedCount, completedCount, totalCount, aggregateSpeedBytesPerSecond, pendingImports]
+      properties:
+        ok:
+          type: boolean
+        version:
+          type: string
+        listeningPort:
+          type: integer
+        apiRequiresKey:
+          type: boolean
+        activeCount:
+          type: integer
+        queuedCount:
+          type: integer
+        completedCount:
+          type: integer
+        totalCount:
+          type: integer
+        aggregateSpeedBytesPerSecond:
+          type: integer
+        pendingImports:
+          type: integer
+    ExtensionSettings:
+      type: object
+      properties:
+        autoCapture:
+          type: boolean
+        showPageWidgets:
+          type: boolean
+        sendRequestHeaders:
+          type: boolean
+        silentAdd:
+          type: boolean
+        silentStart:
+          type: boolean
+        closeCapturedTab:
+          type: boolean
+        bypassKey:
+          type: string
+        minimumSizeKB:
+          type: integer
+        extensions:
+          type: array
+          items:
+            type: string
+        ignoredPatterns:
+          type: array
+          items:
+            type: string
+        apiPort:
+          type: integer
+        apiRequiresKey:
+          type: boolean
+
+security:
+  - {}
+  - ApiKeyAuth: []
 
 paths:
+  /ping:
+    post:
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: pong
+        "401":
+          description: Missing or invalid X-API-Key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReceipt"
+
+  /status:
+    get:
+      summary: Runtime health and aggregate transfer metrics
+      responses:
+        "200":
+          description: Current integration server and transfer summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceStatus"
+
+  /quit:
+    post:
+      summary: Request graceful application quit
+      responses:
+        "200":
+          description: Quit notification posted
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
   /add:
     post:
-      summary: Add a new download source
+      summary: Add one or more download items (idempotent by requestId)
+      parameters:
+        - in: header
+          name: X-Request-ID
+          schema:
+            type: string
+        - in: header
+          name: X-Request-Deadline-Ms
+          schema:
+            type: integer
       requestBody:
-        description: Data for adding a download source
+        required: true
         content:
           application/json:
             schema:
-              type: array
-              items:
-                type: object
-                properties:
-                  link:
-                    type: string
-                    description: The link to the download source
-                  headers:
+              type: object
+              required: [items]
+              properties:
+                requestId:
+                  type: string
+                items:
+                  type: array
+                  items:
                     type: object
-                    additionalProperties:
-                      type: string
-                    description: Optional headers for the request
-                  downloadPage:
-                    type: string
-                    description: Optional download page URL
+                    required: [link]
+                    properties:
+                      type:
+                        type: string
+                        enum: [http, hls]
+                      link:
+                        type: string
+                      headers:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      downloadPage:
+                        type: string
+                      suggestedName:
+                        type: string
+                      folder:
+                        type: string
+                      queueId:
+                        type: integer
+                      categoryId:
+                        type: integer
+                      startDownload:
+                        type: boolean
+                options:
+                  type: object
+                  properties:
+                    silentAdd:
+                      type: boolean
+                    silentStart:
+                      type: boolean
+                    requestDeadlineMs:
+                      type: integer
       responses:
         "200":
-          description: Successfully added the download
+          description: Structured import receipt
           content:
-            plain/text:
+            application/json:
               schema:
-                type: string
-                description: OK on success
+                $ref: "#/components/schemas/ImportReceipt"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReceipt"
+        "408":
+          description: Request deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReceipt"
+        "409":
+          description: Request ID reused with a different canonical payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReceipt"
+
+  /tasks:
+    get:
+      summary: List all persisted tasks with live progress and speed
+      responses:
+        "200":
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskSummary"
+
+  /tasks/{id}/start:
+    post:
+      summary: Start or resume a task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task start requested
+
+  /tasks/{id}/resume:
+    post:
+      summary: Resume a paused or failed task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task resume requested
+
+  /tasks/{id}/pause:
+    post:
+      summary: Pause an active or queued task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task pause requested
+
+  /tasks/{id}/cancel:
+    post:
+      summary: Cancel a task
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task cancelled
+
+  /tasks/{id}/remove:
+    delete:
+      summary: Remove a task record (optionally moving completed file to Trash)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: removeFiles
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Task removed
 
   /queues:
     get:
@@ -59,48 +404,89 @@ paths:
                   properties:
                     id:
                       type: integer
-                      description: The unique ID of the queue
                     name:
                       type: string
-                      description: The name of the queue
+
+  /queues/{id}/start:
+    post:
+      summary: Start a download queue
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Queue started
+
+  /settings/extension:
+    get:
+      summary: Read browser extension integration settings
+      responses:
+        "200":
+          description: Current extension settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtensionSettings"
+    put:
+      summary: Update browser extension integration settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtensionSettings"
+      responses:
+        "200":
+          description: Settings persisted
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
   /start-headless-download:
     post:
-      summary: Add a new download task
+      summary: Compatibility endpoint to add a single headless download task
       requestBody:
-        description: Data for adding a download task
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [downloadSource]
               properties:
                 downloadSource:
                   type: object
                   properties:
+                    type:
+                      type: string
                     link:
                       type: string
-                      description: The link to the download source
                     headers:
                       type: object
                       additionalProperties:
                         type: string
-                      description: Optional headers for the request
                     downloadPage:
                       type: string
-                      description: Optional download page URL
                 folder:
                   type: string
-                  description: Optional folder to save the download (Unix style path)
                 name:
                   type: string
-                  description: Optional name for the download task
                 queueId:
                   type: integer
-                  description: Optional queue ID to associate the task with
+                categoryId:
+                  type: integer
+                startDownload:
+                  type: boolean
+                startQueue:
+                  type: boolean
       responses:
         "200":
-          description: Successfully added the download task
+          description: Structured import receipt
           content:
-            plain/text:
+            application/json:
               schema:
-                type: string
-                description: OK on success
+                $ref: "#/components/schemas/ImportReceipt"

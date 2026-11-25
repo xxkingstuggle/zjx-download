@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import zlib
 
 public enum ChecksumService {
     public static func calculate(file: URL, algorithm: String) throws -> String {
@@ -24,14 +25,14 @@ public enum ChecksumService {
             try consume(input) { digest.update(data: $0) }
             return digest.finalize().map { String(format: "%02x", $0) }.joined()
         case "crc32":
-            var crc: UInt32 = 0xffff_ffff
+            var crc: uLong = zlib.crc32(0, nil, 0)
             try consume(input) { bytes in
-                for byte in bytes {
-                    crc ^= UInt32(byte)
-                    for _ in 0..<8 { crc = (crc >> 1) ^ (0xedb8_8320 & (0 &- (crc & 1))) }
+                bytes.withUnsafeBytes { raw in
+                    guard let base = raw.bindMemory(to: Bytef.self).baseAddress else { return }
+                    crc = zlib.crc32(crc, base, uInt(raw.count))
                 }
             }
-            return String(format: "%08x", crc ^ 0xffff_ffff)
+            return String(format: "%08x", UInt32(truncatingIfNeeded: crc))
         default:
             throw ValidationError("支持 SHA-256、SHA-512、SHA-1、MD5 和 CRC-32。")
         }

@@ -23,10 +23,10 @@ public enum ByteFormatting {
         var value = Double(max(0, bytesPerSecond)) * 8
         var index = 0
         while value >= base && index < names.count - 1 { value /= base; index += 1 }
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = index == 0 ? 0 : 1
-        formatter.minimumFractionDigits = 0
-        return "\(formatter.string(from: NSNumber(value: value)) ?? String(value)) \(names[index])"
+        let formatted = index == 0
+            ? value.formatted(.number.precision(.fractionLength(0)))
+            : value.formatted(.number.precision(.fractionLength(0...1)))
+        return "\(formatted) \(names[index])"
     }
 
     public static func speedUnitLabel(_ unit: String) -> String {
@@ -208,15 +208,7 @@ public struct CategoryRecord: Codable, Identifiable, Hashable, Sendable {
     }
 
     private func wildcard(_ pattern: String, value: String) -> Bool {
-        let pieces = pattern.lowercased().split(separator: "*", omittingEmptySubsequences: false).map(String.init)
-        var cursor = value.lowercased().startIndex
-        let lower = value.lowercased()
-        for (index, piece) in pieces.enumerated() {
-            guard let found = lower.range(of: piece, range: cursor..<lower.endIndex) else { return false }
-            if index == 0 && found.lowerBound != lower.startIndex { return false }
-            cursor = found.upperBound
-        }
-        return pattern.hasSuffix("*") || cursor == lower.endIndex
+        NetworkConfiguration.wildcard(pattern, value: value)
     }
 }
 

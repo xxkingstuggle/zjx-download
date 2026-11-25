@@ -27,16 +27,17 @@ public enum IntegrationError: Error, LocalizedError, Equatable, Sendable {
 @MainActor
 @Observable
 public final class IntegrationServer {
-    private struct ListenerConfiguration: Equatable {
+    private struct ListenerBinding: Equatable {
         var enabled: Bool
         var port: Int
+    }
+
+    private struct AuthSettings: Equatable, Sendable {
         var requiresKey: Bool
         var keyAccount: String
     }
 
     private struct RequestSettings: Sendable {
-        var requiresKey: Bool
-        var keyAccount: String
         var port: Int
     }
 
@@ -84,7 +85,8 @@ public final class IntegrationServer {
 
     @ObservationIgnored private weak var coordinator: TaskCoordinator?
     @ObservationIgnored private var listener: NWListener?
-    @ObservationIgnored private var configuration: ListenerConfiguration?
+    @ObservationIgnored private var binding: ListenerBinding?
+    @ObservationIgnored private var authSettings = AuthSettings(requiresKey: false, keyAccount: "integration-api-key")
     @ObservationIgnored private var listenerGeneration: UInt64 = 0
     @ObservationIgnored private var connections: [ObjectIdentifier: ConnectionContext] = [:]
     @ObservationIgnored private let networkQueue = DispatchQueue(label: "com.zjx.download.integration", qos: .utility)
@@ -100,37 +102,44 @@ public final class IntegrationServer {
     private static let maximumReceiptErrorBytes = 160
     private static let requestTimeout: TimeInterval = 15
     private static let importTimeout: TimeInterval = 125
+    private static let singleValueHeaders: Set<String> = [
+        "host", "content-length", "transfer-encoding", "origin", "x-api-key",
+        "x-request-id", "x-request-deadline-ms", "authorization", "content-type"
+    ]
 
     public init(coordinator: TaskCoordinator) { self.coordinator = coordinator }
 
     public func restart(settings: AppSettings) {
-        let next = ListenerConfiguration(enabled: settings.apiEnabled, port: settings.apiPort,
-            requiresKey: settings.apiRequiresKey, keyAccount: settings.apiKeyAccount)
-        guard next != configuration else { return }
+        authSettings = AuthSettings(requiresKey: settings.apiRequiresKey, keyAccount: settings.apiKeyAccount)
+        let nextBinding = ListenerBinding(enabled: settings.apiEnabled, port: settings.apiPort)
+        if nextBinding == binding, (!nextBinding.enabled || listener != nil) {
+            return
+        }
 
         listenerGeneration &+= 1
         closeOwnedConnections()
         listener?.cancel()
         listener = nil
-        configuration = next
+        binding = nextBinding
         listeningPort = nil
         lastError = nil
 
-        guard next.enabled else { return }
-        guard (1024...65_535).contains(next.port), let port = NWEndpoint.Port(rawValue: UInt16(next.port)) else {
+        guard nextBinding.enabled else { return }
+        guard (1024...65_535).contains(nextBinding.port), let port = NWEndpoint.Port(rawValue: UInt16(nextBinding.port)) else {
             lastError = "本机集成端口必须在 1024 到 65535 之间。"
-            configuration = nil
+            binding = nil
             return
         }
 
         do {
             let parameters = NWParameters.tcp
+            parameters.allowLocalEndpointReuse = true
             parameters.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host("127.0.0.1"), port: port)
             // The port is already part of requiredLocalEndpoint. Passing it again
             // through the listener initializer asks Network.framework to override it.
             let nextListener = try NWListener(using: parameters)
             let generation = listenerGeneration
-            let requestSettings = RequestSettings(requiresKey: next.requiresKey, keyAccount: next.keyAccount, port: next.port)
+            let requestSettings = RequestSettings(port: nextBinding.port)
             nextListener.newConnectionHandler = { [weak self] connection in
                 Task { @MainActor [weak self] in
                     self?.accept(connection, generation: generation, settings: requestSettings)
@@ -143,13 +152,19 @@ public final class IntegrationServer {
             nextListener.start(queue: networkQueue)
         } catch {
             lastError = listenerErrorDescription(error, port: port.rawValue)
-            configuration = nil
+            binding = nil
         }
+    }
+
+    public func retryListening() {
+        guard let settings = coordinator?.data.settings else { return }
+        binding = nil
+        restart(settings: settings)
     }
 
     public func stop() {
         listenerGeneration &+= 1
-        configuration = nil
+        binding = nil
         listener?.cancel()
         listener = nil
         listeningPort = nil
@@ -168,7 +183,7 @@ public final class IntegrationServer {
             listenerGeneration &+= 1
             listener?.cancel()
             listener = nil
-            configuration = nil
+            binding = nil
             closeOwnedConnections()
         default:
             break
@@ -184,16 +199,32 @@ public final class IntegrationServer {
             connection.cancel()
             return
         }
-        guard connections.count < Self.maximumConnections else {
+        let activeCount = connections.values.reduce(0) { $0 + ($1.isClosed ? 0 : 1) }
+        guard activeCount < Self.maximumConnections else {
             connection.cancel()
             return
         }
 
         let identifier = ObjectIdentifier(connection)
         connections[identifier] = ConnectionContext(connection: connection, generation: generation, settings: settings)
+        connection.stateUpdateHandler = { [weak self] state in
+            Task { @MainActor [weak self] in
+                self?.connectionStateChanged(state, identifier: identifier, generation: generation)
+            }
+        }
         installDeadline(for: identifier, after: Self.requestTimeout)
         connection.start(queue: networkQueue)
         receiveNext(for: identifier)
+    }
+
+    private func connectionStateChanged(_ state: NWConnection.State, identifier: ObjectIdentifier, generation: UInt64) {
+        guard let context = connections[identifier], context.generation == generation, !context.isClosed else { return }
+        switch state {
+        case .failed, .cancelled:
+            closeConnection(identifier)
+        default:
+            break
+        }
     }
 
     private func receiveNext(for identifier: ObjectIdentifier) {
@@ -341,10 +372,9 @@ public final class IntegrationServer {
         }
         installDeadline(for: identifier, after: timeout)
         let generation = context.generation
-        let settings = context.settings
         let work = Task { @MainActor [weak self] in
             guard let self else { return }
-            let result = await self.route(request, settings: settings)
+            let result = await self.route(request)
             self.routeCompleted(result, identifier: identifier, generation: generation)
         }
         connections[identifier]?.routeTask = work
@@ -432,6 +462,7 @@ public final class IntegrationServer {
         guard var context = connections[identifier] else { return }
         context.timer?.cancel()
         context.timer = nil
+        context.connection.stateUpdateHandler = nil
         context.connection.cancel()
         if context.routeTask != nil {
             context.routeTask?.cancel()
@@ -450,6 +481,7 @@ public final class IntegrationServer {
             guard var context = connections[identifier] else { continue }
             context.timer?.cancel()
             context.timer = nil
+            context.connection.stateUpdateHandler = nil
             context.connection.cancel()
             if context.routeTask != nil {
                 context.routeTask?.cancel()
@@ -464,14 +496,14 @@ public final class IntegrationServer {
         }
     }
 
-    private func route(_ request: ParsedRequest, settings: RequestSettings) async -> HTTPResponse {
+    private func route(_ request: ParsedRequest) async -> HTTPResponse {
         guard let coordinator else { return HTTPResponse(status: 503, body: Self.errorBody("SERVICE_UNAVAILABLE", "应用服务不可用。")) }
         let path = request.target.split(separator: "?", maxSplits: 1).first.map(String.init) ?? request.target
         let method = request.method
         if method == "OPTIONS" {
             return HTTPResponse(status: 204, body: Data())
         }
-        switch Self.authorization(request.headers, settings: settings, coordinator: coordinator) {
+        switch Self.authorization(request.headers, auth: authSettings, coordinator: coordinator) {
         case .allowed:
             break
         case .denied:
@@ -481,6 +513,30 @@ public final class IntegrationServer {
         }
 
         if method == "POST", path == "/ping" { return HTTPResponse(status: 200, body: Data("pong".utf8)) }
+        if method == "GET", path == "/status" {
+            let tasks = coordinator.data.tasks
+            let liveState = coordinator.liveState
+            let activeCount = tasks.filter { $0.status.isActive }.count
+            let queuedCount = tasks.filter { $0.status == .queued }.count
+            let completedCount = tasks.filter { $0.status == .completed }.count
+            let aggregateSpeed = tasks.reduce(Int64(0)) { partial, task in
+                guard task.status.isActive else { return partial }
+                return partial + Int64(max(0, liveState.metrics[task.id]?.bytesPerSecond ?? 0))
+            }
+            var statusPayload: [String: Any] = [
+                "ok": true,
+                "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.4",
+                "apiRequiresKey": authSettings.requiresKey,
+                "activeCount": activeCount,
+                "queuedCount": queuedCount,
+                "completedCount": completedCount,
+                "totalCount": tasks.count,
+                "aggregateSpeedBytesPerSecond": aggregateSpeed,
+                "pendingImports": coordinator.pendingImportCount
+            ]
+            if let listeningPort { statusPayload["listeningPort"] = Int(listeningPort) }
+            return HTTPResponse(status: 200, body: Self.jsonData(statusPayload))
+        }
         if method == "POST", path == "/quit" {
             NotificationCenter.default.post(name: .zjxQuitRequested, object: nil)
             return HTTPResponse(status: 200, body: Data("OK".utf8))
@@ -497,10 +553,41 @@ public final class IntegrationServer {
             return HTTPResponse(status: 200, body: Self.jsonData(coordinator.queueList()))
         }
         if method == "GET", path == "/tasks" {
+            let formatter = ISO8601DateFormatter()
+            let liveState = coordinator.liveState
             let tasks = coordinator.data.tasks.map { task -> [String: Any] in
-                var result: [String: Any] = ["id": task.id, "status": task.status.rawValue, "name": task.displayName,
-                    "link": task.sourceURL, "folder": task.destinationDirectory, "receivedBytes": task.receivedBytes]
-                if let total = task.totalBytes { result["totalBytes"] = total }
+                let metric = liveState.metrics[task.id]
+                let received = liveState.receivedBytes[task.id] ?? task.receivedBytes
+                let total = liveState.totalBytes[task.id] ?? task.totalBytes
+                let speed = task.status.isActive ? Int64(max(0, metric?.bytesPerSecond ?? 0)) : 0
+                let averageSpeed = task.status.isActive ? Int64(max(0, metric?.averageBytesPerSecond ?? 0)) : 0
+                var result: [String: Any] = [
+                    "id": task.id,
+                    "kind": task.kind.rawValue,
+                    "status": task.status.rawValue,
+                    "name": task.displayName,
+                    "link": task.sourceURL,
+                    "folder": task.destinationDirectory,
+                    "receivedBytes": received,
+                    "speedBytesPerSecond": speed,
+                    "averageSpeedBytesPerSecond": averageSpeed,
+                    "createdAt": formatter.string(from: task.createdAt)
+                ]
+                if let total {
+                    result["totalBytes"] = total
+                    if total > 0 {
+                        result["progress"] = min(1.0, max(0.0, Double(received) / Double(total)))
+                        if speed > 0, total > received {
+                            result["etaSeconds"] = Int((total - received) / speed)
+                        }
+                    }
+                } else if task.status == .completed {
+                    result["progress"] = 1.0
+                }
+                if let lastError = task.lastError { result["lastError"] = lastError }
+                if let queueID = task.queueID { result["queueId"] = queueID }
+                if let categoryID = task.categoryID { result["categoryId"] = categoryID }
+                if let completedAt = task.completedAt { result["completedAt"] = formatter.string(from: completedAt) }
                 return result
             }
             return HTTPResponse(status: 200, body: Self.jsonData(tasks))
@@ -547,7 +634,8 @@ public final class IntegrationServer {
                 }
                 return HTTPResponse(status: 200, body: Self.jsonData(["ok": true, "taskID": taskEndpoint.id]))
             case ("DELETE", "remove"):
-                let errors = coordinator.remove([taskEndpoint.id], removeCompletedFiles: false)
+                let removeFiles = Self.queryFlag("removeFiles", in: request.target)
+                let errors = coordinator.remove([taskEndpoint.id], removeCompletedFiles: removeFiles)
                 guard errors.isEmpty else {
                     return HTTPResponse(status: 500, body: Self.errorBody("PERSISTENCE_FAILED", errors.joined(separator: " ")))
                 }
@@ -653,17 +741,25 @@ public final class IntegrationServer {
         }
     }
 
-    private static func authorization(_ headers: [String: String], settings: RequestSettings,
+    private static func authorization(_ headers: [String: String], auth: AuthSettings,
                                       coordinator: TaskCoordinator) -> AuthorizationDecision {
-        guard settings.requiresKey else { return .allowed }
-        guard !settings.keyAccount.isEmpty else { return .unavailable }
+        guard auth.requiresKey else { return .allowed }
+        guard !auth.keyAccount.isEmpty else { return .unavailable }
         let expected: String?
-        do { expected = try coordinator.credentials.read(account: settings.keyAccount) }
+        do { expected = try coordinator.credentials.read(account: auth.keyAccount) }
         catch { return .unavailable }
         guard let expected else { return .unavailable }
         guard let supplied = headers["x-api-key"], !supplied.isEmpty,
-              Data(supplied.utf8) == Data(expected.utf8) else { return .denied }
+              NetworkConfiguration.constantTimeEqual(Data(supplied.utf8), Data(expected.utf8)) else { return .denied }
         return .allowed
+    }
+
+    private static func queryFlag(_ name: String, in target: String) -> Bool {
+        guard let components = URLComponents(string: "http://127.0.0.1\(target)"),
+              let raw = components.queryItems?.first(where: { $0.name == name })?.value?.lowercased() else {
+            return false
+        }
+        return raw == "true" || raw == "1"
     }
 
     private static func applyExtensionSettings(_ object: [String: Any], to settings: inout ExtensionSettings) {
@@ -706,11 +802,18 @@ public final class IntegrationServer {
                 return .invalid(status: 400, code: "INVALID_REQUEST", message: "HTTP 请求头格式无效。")
             }
             let name = String(line[..<colon]).lowercased()
-            guard !name.isEmpty, name.utf8.allSatisfy(Self.isHeaderNameByte), headers[name] == nil else {
-                return .invalid(status: 400, code: "INVALID_REQUEST", message: "HTTP 请求头重复或名称无效。")
+            guard !name.isEmpty, name.utf8.allSatisfy(Self.isHeaderNameByte) else {
+                return .invalid(status: 400, code: "INVALID_REQUEST", message: "HTTP 请求头名称无效。")
             }
             let value = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
-            headers[name] = value
+            if let existing = headers[name] {
+                guard !Self.singleValueHeaders.contains(name) else {
+                    return .invalid(status: 400, code: "INVALID_REQUEST", message: "关键 HTTP 请求头不允许重复。")
+                }
+                headers[name] = "\(existing), \(value)"
+            } else {
+                headers[name] = value
+            }
         }
         guard headers["host"] != nil else {
             return .invalid(status: 400, code: "INVALID_REQUEST", message: "缺少 Host 请求头。")
