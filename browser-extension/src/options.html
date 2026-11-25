@@ -1,1 +1,170 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>zjx-download 设置</title><link rel="stylesheet" href="ui.css"></head><body><main><header><img src="icons/icon-48.png"><div><h1>zjx-download 设置</h1><p>权限按功能申请。关闭自动接管后，Chrome 保留原下载流程。</p></div></header><section><h2>连接</h2><label>本机 API 端口 <input id="port" type="number" min="1024" max="65535"></label><label>API Key <input id="apiKey" type="password" autocomplete="off"></label><button id="check">检查连接</button><span id="connection"></span><h2>自动接管</h2><label><input id="autoCapture" type="checkbox"> 接管符合条件的浏览器文件下载</label><label><input id="minimumSizeKB" type="number" min="0"> 最小文件大小（KB，0 不限）</label><label>扩展名（逗号分隔）<input id="extensions"></label><label>忽略规则（每行一个 URL 模式）<textarea id="ignoredPatterns" rows="4"></textarea></label><label><input id="closeCapturedTab" type="checkbox"> 确认 App 接收后关闭匹配的新下载标签页</label><h2>手动与媒体</h2><label><input id="showPageWidgets" type="checkbox"> 显示选区与媒体候选</label><label><input id="sendRequestHeaders" type="checkbox"> 转交观察到的 Cookie 和请求头</label><button id="headerPermission" class="secondary">申请请求头权限</button><label>绕过键 <input id="bypassKey"></label><h2>添加方式</h2><label><input id="silentAdd" type="checkbox"> 静默添加</label><label><input id="silentStart" type="checkbox"> 静默添加后立即开始</label><button id="save">保存设置</button><p id="result" role="status"></p></section><script type="module" src="options.js"></script></main></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>zjx-download 扩展设置</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <main class="options-page">
+    <header class="options-header">
+      <div class="options-brand">
+        <img src="icons/icon-96.png" alt="zjx-download">
+        <div>
+          <h1>zjx-download 扩展设置</h1>
+          <p>所有权限按需申请；关闭自动接管后 Chrome 完整保留原生下载流程。</p>
+        </div>
+      </div>
+      <span id="syncPill" class="pill-badge">等待同步状态…</span>
+    </header>
+
+    <div id="apiKeyWarning" class="alert-banner" hidden>
+      <span>检测到本机 App 已开启 API Key 鉴权，请在此处填写对应密钥后保存。</span>
+    </div>
+
+    <section class="options-card">
+      <h2>
+        <span>本机连接与鉴权</span>
+        <span id="connection" class="pill-badge">未检测</span>
+      </h2>
+      <div class="field-grid">
+        <div class="field">
+          <label for="port">本机 API 端口（仅 127.0.0.1，1024–65535）</label>
+          <input id="port" class="tabular" type="number" min="1024" max="65535" step="1">
+        </div>
+        <div class="field">
+          <label for="apiKey">API Key（可选，需与 App 钥匙串一致）</label>
+          <div class="input-group">
+            <input id="apiKey" class="mono" type="password" autocomplete="off" placeholder="留空表示不发送 X-API-Key">
+            <button id="toggleApiKey" class="secondary" type="button">显示</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <button id="check" class="secondary" type="button">检查本机连接</button>
+      </div>
+    </section>
+
+    <section class="options-card">
+      <h2>权限状态总览</h2>
+      <div class="perm-row">
+        <div class="perm-copy">
+          <strong>网站访问与下载监听（webRequest）</strong>
+          <span>用于自动接管浏览器下载、选区抓取及网页视频/HLS 探测。</span>
+        </div>
+        <div class="input-group">
+          <span id="sitePermBadge" class="pill-badge">检测中…</span>
+          <button id="sitePermissionBtn" class="secondary" type="button">授权</button>
+        </div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-copy">
+          <strong>Cookie 与请求头转交（cookies + webRequest）</strong>
+          <span>仅在需要带登录态下载受保护资源时按需授权。</span>
+        </div>
+        <div class="input-group">
+          <span id="headerPermBadge" class="pill-badge">检测中…</span>
+          <button id="headerPermission" class="secondary" type="button">授权</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="options-card">
+      <h2>自动接管规则</h2>
+      <div class="toggle-list">
+        <label class="toggle-row" for="autoCapture">
+          <div class="toggle-copy">
+            <strong>自动接管符合条件的浏览器文件下载</strong>
+            <small>确认本机 App 持久化接收后才取消 Chrome 下载项，避免丢任务</small>
+          </div>
+          <span class="switch">
+            <input id="autoCapture" type="checkbox">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+        <label class="toggle-row" for="closeCapturedTab">
+          <div class="toggle-copy">
+            <strong>接管成功后自动关闭空白下载标签页</strong>
+            <small>仅在 App 明确回执成功接收后触发</small>
+          </div>
+          <span class="switch">
+            <input id="closeCapturedTab" type="checkbox">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="minimumSizeKB">最小接管文件大小（KB，0 表示不限）</label>
+          <input id="minimumSizeKB" class="tabular" type="number" min="0" step="1">
+        </div>
+        <div class="field">
+          <label for="bypassKey">临时绕过键（按住此键时保持 Chrome 原生下载）</label>
+          <input id="bypassKey" class="mono" type="text" placeholder="例如 Backspace 或 Alt">
+        </div>
+      </div>
+      <div class="field">
+        <label for="extensions">接管扩展名（逗号或空格分隔）</label>
+        <input id="extensions" class="mono" type="text" placeholder="zip, dmg, pkg, iso, mp4, ...">
+      </div>
+      <div class="field">
+        <label for="ignoredPatterns">忽略规则（每行一条，支持 * 通配符）</label>
+        <textarea id="ignoredPatterns" class="mono" rows="4" placeholder="https://example.com/private/*"></textarea>
+      </div>
+    </section>
+
+    <section class="options-card">
+      <h2>网页媒体与添加行为</h2>
+      <div class="toggle-list">
+        <label class="toggle-row" for="showPageWidgets">
+          <div class="toggle-copy">
+            <strong>显示网页选区与媒体候选浮窗</strong>
+            <small>使用 Shadow DOM 隔离样式，不干扰原网页排版</small>
+          </div>
+          <span class="switch">
+            <input id="showPageWidgets" type="checkbox">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+        <label class="toggle-row" for="sendRequestHeaders">
+          <div class="toggle-copy">
+            <strong>转交观察到的 Cookie 和请求头</strong>
+            <small>需要已授权 cookies 与 webRequest 权限</small>
+          </div>
+          <span class="switch">
+            <input id="sendRequestHeaders" type="checkbox">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+        <label class="toggle-row" for="silentAdd">
+          <div class="toggle-copy">
+            <strong>静默添加</strong>
+            <small>直接创建下载任务，不弹出 App 确认对话框</small>
+          </div>
+          <span class="switch">
+            <input id="silentAdd" type="checkbox">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+        <label class="toggle-row" for="silentStart">
+          <div class="toggle-copy">
+            <strong>静默添加后立即开始下载</strong>
+            <small>仅在开启“静默添加”后可用</small>
+          </div>
+          <span class="switch">
+            <input id="silentStart" type="checkbox">
+            <span class="switch-slider"></span>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <footer class="save-bar">
+      <p id="result" role="status">修改后点击右侧按钮保存并同步到本机 App。</p>
+      <button id="save" type="button">保存并同步</button>
+    </footer>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

@@ -1,1 +1,95 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>zjx-download</title><link rel="stylesheet" href="ui.css"></head><body class="popup"><header><img src="icons/icon-32.png"><div><strong>zjx-download</strong><small id="connection">检查中…</small></div></header><label><input id="autoCapture" type="checkbox"> 自动接管 Chrome 下载</label><label><input id="showPageWidgets" type="checkbox"> 显示选区与媒体候选</label><label><input id="silentAdd" type="checkbox"> 静默添加</label><button id="pageMedia">查看当前页媒体候选</button><button id="settings" class="secondary">完整设置…</button><p id="message"></p><script type="module" src="popup.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>zjx-download</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body class="popup">
+  <header class="popup-header">
+    <div class="brand">
+      <img src="icons/icon-48.png" alt="zjx-download">
+      <div>
+        <div class="brand-title">
+          <span>zjx-download</span>
+          <span class="version-tag" id="versionTag">v2.0.4</span>
+        </div>
+        <div class="status-pill">
+          <span class="dot offline" id="statusDot"></span>
+          <span id="connection">正在检测本机连接…</span>
+        </div>
+      </div>
+    </div>
+    <button id="refreshBtn" class="icon-btn" type="button" title="刷新状态与任务">刷新</button>
+  </header>
+
+  <div id="authBanner" class="alert-banner" hidden>
+    <span>本机 API 需要有效 API Key</span>
+    <button id="authSettingsBtn" class="mini-btn" type="button">去配置</button>
+  </div>
+
+  <section class="card">
+    <form id="quickForm" class="quick-form">
+      <input id="quickUrl" type="url" placeholder="粘贴 HTTP(S) 链接快捷投递…" autocomplete="off" spellcheck="false">
+      <button id="quickSubmit" type="submit">添加</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <span class="card-title" id="tasksHeader">活跃下载</span>
+      <span class="speed-chip tabular" id="aggregateSpeed" hidden></span>
+    </div>
+    <div id="taskList" class="task-list">
+      <div class="empty-state">正在读取任务状态…</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="toggle-list">
+      <label class="toggle-row" for="autoCapture">
+        <div class="toggle-copy">
+          <strong>自动接管下载</strong>
+          <small>快捷键 ⌘⇧Y 随时切换</small>
+        </div>
+        <span class="switch">
+          <input id="autoCapture" type="checkbox">
+          <span class="switch-slider"></span>
+        </span>
+      </label>
+      <label class="toggle-row" for="showPageWidgets">
+        <div class="toggle-copy">
+          <strong>网页选区与媒体候选</strong>
+          <small>自动捕获页面视频与 HLS 流</small>
+        </div>
+        <span class="switch">
+          <input id="showPageWidgets" type="checkbox">
+          <span class="switch-slider"></span>
+        </span>
+      </label>
+      <label class="toggle-row" for="silentAdd">
+        <div class="toggle-copy">
+          <strong>静默添加</strong>
+          <small>直接入队，跳过 App 弹窗确认</small>
+        </div>
+        <span class="switch">
+          <input id="silentAdd" type="checkbox">
+          <span class="switch-slider"></span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <div class="action-row">
+    <button id="pageMedia" type="button">
+      <span>当前页媒体</span>
+      <span id="mediaCountBadge" class="count-badge tabular" data-empty="true">0</span>
+    </button>
+    <button id="settings" class="secondary" type="button">完整设置…</button>
+  </div>
+
+  <p id="message" class="status-footer" role="status"></p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

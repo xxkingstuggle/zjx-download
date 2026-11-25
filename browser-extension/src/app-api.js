@@ -1,4 +1,5 @@
 import {getConfig, saveConfig} from "./storage.js";
+import {computeRequestDeadlineMs} from "./utils.js";
 
 const requestId = () => crypto.randomUUID();
 const MAX_REQUEST_WAIT_MS = 120_000;
@@ -7,23 +8,81 @@ export async function ping() {
   const config = await getConfig();
   try {
     const response = await fetch(`http://127.0.0.1:${config.port}/ping`, {method: "POST", headers: headers(config), body: "", signal: AbortSignal.timeout(1800)});
-    if (response.ok && (await response.text()).trim() === "pong") return {connected: true, channel: "HTTP"};
+    if (response.ok && (await response.text()).trim() === "pong") return {connected: true, channel: "HTTP", unauthorized: false};
+    if (response.status === 401) return {connected: false, channel: "HTTP", unauthorized: true};
   } catch {}
   const id = requestId();
   try {
     const response = await chrome.runtime.sendNativeMessage("com.zjx.download", {id, content: {action: "ping", payload: JSON.stringify({requestId: id, options: {apiPort: config.port, apiKey: config.apiKey}})}});
     if (response?.id === id && response?.content?.isError === false && response?.content?.payload === "pong") {
-      return {connected: true, channel: "Native Messaging"};
+      return {connected: true, channel: "Native Messaging", unauthorized: false};
     }
-  } catch { return {connected: false, channel: ""}; }
-  return {connected: false, channel: ""};
+    if (typeof response?.content?.payload === "string" && response.content.payload.includes("UNAUTHORIZED")) {
+      return {connected: false, channel: "Native Messaging", unauthorized: true};
+    }
+  } catch { return {connected: false, channel: "", unauthorized: false}; }
+  return {connected: false, channel: "", unauthorized: false};
+}
+
+export async function fetchStatus() {
+  const config = await getConfig();
+  try {
+    const response = await fetch(`http://127.0.0.1:${config.port}/status`, {
+      method: "GET", headers: authHeaders(config), signal: AbortSignal.timeout(1800)
+    });
+    if (response.status === 401) return {ok: false, unauthorized: true, status: null};
+    if (!response.ok) return {ok: false, unauthorized: false, status: null};
+    const value = await response.json();
+    if (value && typeof value === "object") return {ok: true, unauthorized: false, status: value};
+    return {ok: false, unauthorized: false, status: null};
+  } catch {
+    return {ok: false, unauthorized: false, status: null};
+  }
+}
+
+export async function fetchTasks() {
+  const config = await getConfig();
+  try {
+    const response = await fetch(`http://127.0.0.1:${config.port}/tasks`, {
+      method: "GET", headers: authHeaders(config), signal: AbortSignal.timeout(2200)
+    });
+    if (response.status === 401) return {ok: false, unauthorized: true, tasks: [], error: "需要有效的 API Key。"};
+    if (!response.ok) return {ok: false, unauthorized: false, tasks: [], error: `HTTP ${response.status}`};
+    const value = await response.json();
+    return {ok: true, unauthorized: false, tasks: Array.isArray(value) ? value : []};
+  } catch (error) {
+    return {ok: false, unauthorized: false, tasks: [], error: error?.message || "无法连接本机 App。"};
+  }
+}
+
+export async function controlTask(taskId, action) {
+  const numericId = Number(taskId);
+  const allowed = new Set(["start", "resume", "pause", "cancel", "remove"]);
+  if (!Number.isSafeInteger(numericId) || numericId <= 0 || !allowed.has(action)) {
+    return {ok: false, error: "无效的任务操作参数。"};
+  }
+  const config = await getConfig();
+  const method = action === "remove" ? "DELETE" : "POST";
+  try {
+    const response = await fetch(`http://127.0.0.1:${config.port}/tasks/${numericId}/${action}`, {
+      method, headers: headers(config), body: "", signal: AbortSignal.timeout(3000)
+    });
+    if (response.status === 401) return {ok: false, unauthorized: true, error: "缺少或错误的 API Key。"};
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return {ok: false, error: safeBody(text) || `HTTP ${response.status}`};
+    }
+    return {ok: true};
+  } catch (error) {
+    return {ok: false, error: error?.message || "操作失败。"};
+  }
 }
 
 export async function fetchExtensionSettings() {
   const config = await getConfig();
   try {
     const response = await fetch(`http://127.0.0.1:${config.port}/settings/extension`, {
-      method: "GET", headers: headers(config), signal: AbortSignal.timeout(1200)
+      method: "GET", headers: authHeaders(config), signal: AbortSignal.timeout(1500)
     });
     if (!response.ok) return null;
     const value = await response.json();
@@ -51,10 +110,15 @@ export async function sendItems(items, {silentStart = false, requestID = request
   if (!Array.isArray(items) || items.length === 0) throw new Error("没有可发送的下载请求。");
   if (typeof requestID !== "string" || requestID.length < 1 || requestID.length > 128) throw new Error("请求编号无效。");
   const waitLimit = Number.isFinite(timeoutMs) ? Math.max(1, Math.min(MAX_REQUEST_WAIT_MS, timeoutMs)) : MAX_REQUEST_WAIT_MS;
-  const deadline = Date.now() + waitLimit;
+  const now = Date.now();
+  const deadline = now + waitLimit;
   const remaining = () => Math.max(0, deadline - Date.now());
   const config = await awaitWithin(getConfig(), remaining(), "读取扩展设置超时。");
-  const options = {silentAdd: config.silentAdd, silentStart: Boolean(config.silentAdd && silentStart), requestDeadlineMs: deadline - 2000};
+  const options = {
+    silentAdd: config.silentAdd,
+    silentStart: Boolean(config.silentAdd && silentStart),
+    requestDeadlineMs: computeRequestDeadlineMs(now, waitLimit)
+  };
   const payload = {requestId: requestID, items, options};
   const nativePayload = {requestId: requestID, items, options: {...options, apiPort: config.port, apiKey: config.apiKey}};
   let httpError = new Error("HTTP 请求未能确认接收。");
@@ -89,7 +153,7 @@ export async function sendItems(items, {silentStart = false, requestID = request
   }
 }
 
-function decodeAcceptance(value, expectedRequestID, expectedItemCount) {
+export function decodeAcceptance(value, expectedRequestID, expectedItemCount) {
   let result;
   try {
     result = typeof value === "string" ? JSON.parse(value) : value;
@@ -146,6 +210,11 @@ function decodeAcceptance(value, expectedRequestID, expectedItemCount) {
 
 function headers(config) {
   const value = {"Content-Type": "application/json"};
+  if (config.apiKey) value["X-API-Key"] = config.apiKey;
+  return value;
+}
+function authHeaders(config) {
+  const value = {};
   if (config.apiKey) value["X-API-Key"] = config.apiKey;
   return value;
 }

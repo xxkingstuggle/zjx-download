@@ -11,7 +11,7 @@ if (manifest.name !== 'zjx-download' || manifest.version !== packageInfo.version
 }
 await rm(output, {recursive: true, force: true});
 await mkdir(output, {recursive: true});
-for (const file of ['manifest.json','background.js','content.js','app-api.js','storage.js','popup.html','popup.js','options.html','options.js','ui.css']) await cp(resolve(source,file), resolve(output,file));
+for (const file of ['manifest.json','background.js','content.js','app-api.js','storage.js','utils.js','popup.html','popup.js','options.html','options.js','ui.css']) await cp(resolve(source,file), resolve(output,file));
 await cp(resolve(root,'public/icons'), resolve(output,'icons'), {recursive:true});
 await cp(resolve(root,'public/THIRD_PARTY_NOTICES.txt'), resolve(output,'THIRD_PARTY_NOTICES.txt'));
 console.log(`Built Chrome MV3 extension at ${output}`);
