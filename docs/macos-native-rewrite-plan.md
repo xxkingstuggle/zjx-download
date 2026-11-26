@@ -186,7 +186,7 @@ Commands actually run and their results:
 - `xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -configuration Release -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO` — exit 0, BUILD SUCCEEDED, no warnings or errors.
 - `codesign --force --timestamp=none --options runtime --sign <Apple Development identity>` applied to the embedded framework binary, the framework bundle, and the app bundle, inner-to-outer.
 - `codesign --verify --deep --strict --verbose=2` — "valid on disk" and "satisfies its Designated Requirement".
-- `spctl -a -vv` — accepted, origin `Apple Development: guozhongeba@gmail.com (PS6ALT4AA5)`, TeamIdentifier `ZNSTKHPLY3`.
+- `spctl -a -vv` — accepted, origin `Apple Development (Developer Team)`, TeamIdentifier `(redacted)`.
 - The app was launched from `outputs/` and the process stayed alive; a window capture was taken with `screencapture -l<windowID>`.
 
 Shipped bundle inspection (`/Applications/zjx-download.app`):

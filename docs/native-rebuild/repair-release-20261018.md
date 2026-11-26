@@ -18,7 +18,7 @@
 | Xcode Release Universal | exit0，BUILD SUCCEEDED；App+Native Host+ZJXDownloadCore均x86_64/arm64 |
 | SwiftPM CLI | arm64 exit0 / x86_64 exit0，lipo合并Universal并签名 |
 | Chrome build | npm run build:chrome exit0；manifest 2.0.1 / background.type=module |
-| 签名 | Apple Development，Team ZNSTKHPLY3；codesign --verify --deep --strict exit0；未公证 |
+| 签名 | Apple Development，Developer Team；codesign --verify --deep --strict exit0；未公证 |
 | 安装 | /Applications/zjx-download.app，2.0.1/build20261018.2，未启动 |
 | 名称/身份 | zjx-download / com.zjx.download |
 | 图标 | Mac icns及Chrome源图标字节与安装前一致 |
@@ -30,14 +30,14 @@
 
 ## 路径与恢复
 
-- 正式源码：/Users/zjx/Developer/repos/zjx-download；独立仓库https://github.com/xxkingstuggle/zjx-download，正式默认分支main；构建前基线0f1245261f429bd6378b43603b2a6f45eb263ef3；完整源码提交177bdd9a69005eba9fbbcc800969e719750ca666先推送工作分支，后按2026-10-19用户澄清接入main，最新交付记录见Git与PROGRESS.md。
-- 发布目录：/Users/zjx/Developer/releases/zjx-download/2.0.1-repair-20261018/。
+- 正式源码：~/Developer/repos/zjx-download；独立仓库https://github.com/xxkingstuggle/zjx-download，正式默认分支main；构建前基线0f1245261f429bd6378b43603b2a6f45eb263ef3；完整源码提交177bdd9a69005eba9fbbcc800969e719750ca666先推送工作分支，后按2026-10-19用户澄清接入main，最新交付记录见Git与PROGRESS.md。
+- 发布目录：~/Developer/releases/zjx-download/2.0.1-repair-20261018/。
 - 新App：该目录zjx-download.app及zjx-download-macos-2.0.1.zip；CLI在bin/zjx-download-cli，未改全局PATH。
 - Chrome：browser-extension/dist/chrome/及zjx-download-chrome-2.0.1.zip。用户在chrome://extensions重新加载此目录；两端均应显示2.0.1，App build20261018.2。
-- 旧App：/Users/zjx/Developer/releases/zjx-download/archive/20261018-pre-repair-20261018.2/zjx-download.app；附RECOVERY.md，旧版本2.0.0/build20261018.1。
-- 旧源码及规格归档：/Users/zjx/Developer/releases/zjx-download/archive/20261018-040041-pre-clean-room/，保留Git bundle、原测试、未跟踪规格/审计材料及恢复说明。
+- 旧App：~/Developer/releases/zjx-download/archive/20261018-pre-repair-20261018.2/zjx-download.app；附RECOVERY.md，旧版本2.0.0/build20261018.1。
+- 旧源码及规格归档：~/Developer/releases/zjx-download/archive/20261018-040041-pre-clean-room/，保留Git bundle、原测试、未跟踪规格/审计材料及恢复说明。
 - 本次修复源码差异：旧App归档同级repair-source.patch，仅含相对本轮起点的源码改动，不能代替完整Git历史。
-- 构建与诊断scratch：/Users/zjx/Developer/scratch/codex/zjx-download-repair-20261018.2/，保留排错，不自动清理。仓库.agent-work中保留源码基线/哈希，无日用数据副本。
+- 构建与诊断scratch：~/Developer/scratch/codex/zjx-download-repair-20261018.2/，保留排错，不自动清理。仓库.agent-work中保留源码基线/哈希，无日用数据副本。
 
 回退时先正常退出App和Native Host，保留当前App后将归档旧包整体恢复到/Applications/zjx-download.app；不要将两个包合并复制。现用状态仍为schema2，新增回执字段为可选；本次未执行数据格式迁移。回退前保留用户数据快照，不删除状态或下载文件。
 

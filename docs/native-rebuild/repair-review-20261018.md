@@ -33,14 +33,14 @@
 
 ## 必要构建
 
-- 干净构建路径：/Users/zjx/Developer/scratch/codex/zjx-download-repair-20261018.2/DerivedData。
+- 干净构建路径：~/Developer/scratch/codex/zjx-download-repair-20261018.2/DerivedData。
 - Xcode：`xcodebuild -project zjx-download.xcodeproj -scheme zjx-download -configuration Release -destination 'platform=macOS' -derivedDataPath <以上路径> CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO ARCHS='arm64 x86_64' build`；最终exit0 / BUILD SUCCEEDED。只剩AppIntents元数据跳过提示，本产品未使用该框架。
 - SwiftPM：`swift build -c release --product zjx-download-cli --arch arm64 --scratch-path <scratch>/cli-arm64`及x86_64，各exit0，lipo合并并签名。
 - Chrome：`npm --prefix browser-extension run build:chrome` exit0；6个源JS和build脚本node --check exit0；zsh -n、git diff --check通过。
 - 编译迭代如实保留：attempt1进度Task推断Void?；attempt2有效端口switch缺return；attempt3后台清理捕获非Sendable Transfer；attempt4 HLS参数顺序和URL可选值；attempt5构建成功，随后移除无效@preconcurrency/未用返回值警告后final再次成功。没有同一错误连续3次失败。
 - 签名首次因Helpers中的shell脚本未签而拒绝；为两个脚本分别签名后重新签App，严格deep校验成功；未安装失败候选。
 - 构建日志：发布目录build-logs/，scratch保留完整中间输出。构建成功不等于功能通过。
-- 安装2.0.1/build20261018.2，主可执行SHA-256 `7a530c63978f456775831d2acc476a412421e5fca3559392c60ca807df8a402c`；Team ZNSTKHPLY3；icns SHA-256 `6c3c9a8bc60b45d62a640ca15a79bc4d75ea91b0d990f88bed1906216c93d122`。
+- 安装2.0.1/build20261018.2，主可执行SHA-256 `7a530c63978f456775831d2acc476a412421e5fca3559392c60ca807df8a402c`；Developer Team；icns SHA-256 `6c3c9a8bc60b45d62a640ca15a79bc4d75ea91b0d990f88bed1906216c93d122`。
 - 安装前未发现App/Host进程；旧App原包移入archive/20261018-pre-repair-20261018.2/。新包复制到Applications暂存并验签后更名安装，保留回退。没有启动App。
 - 现用两份状态文件哈希与源图标8文件前后一致；既有Chrome host注册只读核对，无迁移/全局依赖/PATH/服务变更。
 

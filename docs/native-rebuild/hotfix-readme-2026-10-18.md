@@ -11,6 +11,6 @@ App build `20261018.1` adds a guard for the reported startup crash, which occurs
 - `docs/native-rebuild/test-result-template.md`: result and bug report template.
 - `SHA256SUMS.txt`: artifact checksums.
 
-The App is installed at `/Applications/zjx-download.app`. The previous installed bundle is recoverable at `/Users/zjx/Developer/releases/zjx-download/archive/20261018-pre-hotfix-20261018.1/zjx-download.app`.
+The App is installed at `/Applications/zjx-download.app`. The previous installed bundle is recoverable at `~/Developer/releases/zjx-download/archive/20261018-pre-hotfix-20261018.1/zjx-download.app`.
 
 The executor built and signed the package but did not launch the App, exercise downloads, run functional tests, migrate user data, or operate Chrome. Please test A-053 and report results with the included template.

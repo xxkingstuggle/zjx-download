@@ -38,7 +38,7 @@ struct AboutView: View {
             Text("版本 \(ProductIdentity.version) · macOS 原生下载器").foregroundStyle(.secondary)
 
             VStack(spacing: 8) {
-                Text("重构作者：张家鑫 · Xin (@xxkingstuggle)")
+                Text("由 Xin (@xxkingstuggle) 设计与开发")
                     .font(.subheadline.weight(.semibold))
                 Text("© 2026 Xin (@xxkingstuggle) · Apache-2.0")
                     .font(.caption)

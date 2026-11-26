@@ -147,8 +147,8 @@ struct SettingsWindow: View {
             }
 
             Section("关于与作者") {
-                LabeledContent("重构作者") {
-                    Text("张家鑫 · Xin (@xxkingstuggle)")
+                LabeledContent("作者") {
+                    Text("Xin (@xxkingstuggle)")
                         .fontWeight(.medium)
                 }
                 LabeledContent("官方主页") {

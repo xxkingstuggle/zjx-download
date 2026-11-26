@@ -3,7 +3,7 @@
 ## 开工回执
 
 - 日期：2026-10-18；任务：启动/下载正确性修复中的传输模块。
-- 仓库：`/Users/zjx/Developer/repos/zjx-download`；分支 `zjx/clean-room-native-rebuild`；HEAD `0f1245261f429bd6378b43603b2a6f45eb263ef3`。
+- 仓库：`~/Developer/repos/zjx-download`；分支 `zjx/clean-room-native-rebuild`；HEAD `0f1245261f429bd6378b43603b2a6f45eb263ef3`。
 - 继承工作树已有约200条未提交改动；单 worktree、stash为空；不重置、不提交、不改分支。
 - 已读 `PROGRESS.md`、修复计划/发现、机器开发技能及唯一机器政策和 `MACHINE_STATE.md`。
 - 独占修改 `DownloadEngine.swift`、`SegmentedDownloadService.swift`、`HLSService.swift`、`NetworkConfiguration.swift`。

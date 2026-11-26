@@ -55,7 +55,7 @@
 
 ## 交付核对
 
-- `/Applications/zjx-download.app` 为 `2.0.4/build20261117.2`，Universal x86_64/arm64，Apple Development / Team ZNSTKHPLY3，已通过严格签名校验。
+- `/Applications/zjx-download.app` 为 `2.0.4/build20261117.2`，Universal x86_64/arm64，Apple Development / Developer Team，已通过严格签名校验。
 - Chrome 扩展仍为 2.0.1。此轮在隔离目录构建，未修改日用 Chrome 或 Native Messaging 注册。
 - 正式安装包位于 `/Applications/zjx-download.app`，扩展构建产物位于 `browser-extension/dist/chrome/`。
 - 本轮只替换 App 包，没有访问、修改或迁移任务、设置、凭据及下载文件。安装 icns SHA-256 与旧包一致；更早的数据哈希记录只代表当时安装，不作为本次数据检查。

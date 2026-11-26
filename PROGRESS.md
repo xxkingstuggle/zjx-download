@@ -19,7 +19,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 
 ## 2.0.4 本机接口启动修复（2026-11-17，Asia/Shanghai）
 
-- 2.0.3 在启动时由 `requiredLocalEndpoint` 与 `NWListener` 初始化器重复指定相同端口。系统日志 `Local endpoint has port set, cannot override to 15151` 与该进程无 TCP 监听相符。2.0.4 仅由 `requiredLocalEndpoint` 指定 `127.0.0.1` 和用户所设端口，失败信息增加绑定地址和端口。诊断日志在 `/Users/zjx/Developer/scratch/codex/zjx-download-listener-20261117/listener-before.log`。
+- 2.0.3 在启动时由 `requiredLocalEndpoint` 与 `NWListener` 初始化器重复指定相同端口。系统日志 `Local endpoint has port set, cannot override to 15151` 与该进程无 TCP 监听相符。2.0.4 仅由 `requiredLocalEndpoint` 指定 `127.0.0.1` 和用户所设端口，失败信息增加绑定地址和端口。诊断日志在 `~/Developer/scratch/codex/zjx-download-listener-20261117/listener-before.log`。
 - 独立路径的 Universal App Release、双架构 CLI 和隔离 Chrome 2.0.1 构建完成。App、解包 ZIP 和安装包通过严格签名校验，产品身份和图标字节一致。已安装于 `/Applications/zjx-download.app`，扩展构建产物位于 `browser-extension/dist/chrome/`。
 - **2.0.4/build20261117.2** 已安装。编译及产物核对完成，实际监听和 Chrome/CLI 交接待按 A-041、A-042 用户验收。详见 [INSTALL_LEDGER.md](INSTALL_LEDGER.md) 与[手测表](docs/native-rebuild/manual-test-checklist.md)。
 
@@ -28,7 +28,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 已安装 **2.0.3/build20261117.1**。主窗口使用系统窗后透射材质、原生玻璃操作区和独立任务表区。启用「降低透明度」后使用实色窗底。设计见[功能落点](docs/native-rebuild/design-and-coverage.md)。
 - Xcode 27 / macOS 27 SDK 下，独立 DerivedData 的 Universal Release 构建完成，最低系统仍为 macOS 26。SwiftPM CLI 两种架构以及 Chrome MV3 2.0.1 隔离构建均成功。构建日志保留 AppIntents 元数据提取跳过的提示。
 - App、Native Host、核心框架与 CLI 均为 arm64/x86_64。App 包内仅当前核心框架。App、解包 ZIP 与已安装包通过严格签名检查。签名团队、产品标识和原图标与旧包一致。
-- 旧版正常退出后替换 `/Applications/zjx-download.app`，构建现场位于 `/Users/zjx/Developer/scratch/codex/zjx-download-glass-20261117/`。详见[安装登记](INSTALL_LEDGER.md)。
+- 旧版正常退出后替换 `/Applications/zjx-download.app`，构建现场位于 `~/Developer/scratch/codex/zjx-download-glass-20261117/`。详见[安装登记](INSTALL_LEDGER.md)。
 - A-001…A-071 待用户验收。此轮未启动新版，未测实际透射、功能和功耗。旧版退出时仍显示 `Network.NWError 22`，见 [BLOCKED.md](BLOCKED.md)。
 
 ## 项目知识收尾（2026-11-01，Asia/Shanghai）
@@ -51,7 +51,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 发布流程 warning：现存 macos-14/latest-stable、ad-hoc 签名 workflow 没有当前完整交付验证；本次不触发或重写发布流程。完整现役 OpenAPI 文件尚缺，已明确指向源码合同，避免沿用旧 plain OK 回执。
 - 清理结果：删除本轮新建 scratch 中可重建的 Xcode DerivedData（267.9 MiB）、ZIP 解包核验副本（17.4 MiB）及 SwiftPM arm64/x86_64 scratch build 缓存（92.2/98.7 MiB），共约 476.2 MiB；保留 App/CLI/Chrome build 输出、校验日志（scratch 余 335,110 bytes）。
 - 保留候选：`.build/` 约 21 MiB 含历史隔离/性能验收资料及合成下载样本；`.agent-work/` 约 137 MiB 含历史/会话材料；`browser-extension/dist/` 约 1.6 MiB 是当前手测加载路径的生成包；旧 scratch 中 status/hotfix/repair/ui 约 27 MiB 含唯一诊断日志。以上均保留。旧源码/App/发布物为恢复资产；旧分支仍未逐提交等价审计，均未删除。
-- 本次被明确授权的清理已完成；以上历史现场继续保留。当前构建与校验日志在 `/Users/zjx/Developer/scratch/codex/zjx-download-neat-20261101/`。没有访问或迁移日用任务、设置、Keychain 和下载内容。
+- 本次被明确授权的清理已完成；以上历史现场继续保留。当前构建与校验日志在 `~/Developer/scratch/codex/zjx-download-neat-20261101/`。没有访问或迁移日用任务、设置、Keychain 和下载内容。
 
 ## 界面与外观交付（2026-10-23）
 
@@ -60,11 +60,11 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - Luna 负责 SettingsViews：侧栏分为常规、下载、网络、集成、浏览器、旧数据、更新；可调整窗口尺寸，各页使用 grouped Form；声音路径和按钮分行。主代理审核确认原 43 个应用设置绑定、8 个浏览器绑定及数组绑定均保留，凭据、导入、更新和逐主机实现保持。
 - 主代理补齐：空任务列表/无匹配搜索提示、清除搜索不重置分类/队列；关于页使用同一外观偏好；版本更新为 2.0.2/build20261023.1。
 - 实际核对：全新 DerivedData 下 Xcode Release Universal `BUILD SUCCEEDED`；CLI arm64、x86_64 均 exit 0 并合并；Chrome 构建 exit 0（仍 2.0.1，无源码变更）。未运行 swift test/npm test、App/UI/下载/性能或浏览器测试。
-- 产物：App/Host/Core/CLI 均 Universal，包内仅当前 ZJXDownloadCore.framework，Apple Development / Team ZNSTKHPLY3，严格签名核验通过，原图标 SHA-256 保持。
+- 产物：App/Host/Core/CLI 均 Universal，包内仅当前 ZJXDownloadCore.framework，Apple Development / Developer Team，严格签名核验通过，原图标 SHA-256 保持。
 - 安装：确认 App/Host/CLI 均无运行进程后替换 `/Applications/zjx-download.app`，未启动；见 INSTALL_LEDGER.md。没有读取、清理或迁移现用任务、设置、凭据和下载文件。
 - 验收：新增 A-068 设置滚动/尺寸、A-069 系统外观切换、A-070 空列表；本版 A-001…A-070 全部待用户测试，优先复验 A-047、A-068…A-070。NWError 22 未修复，Chrome 交接尚不能认定可用。
 - 协作：AGY 预检再次因 `unknown model/group relationship` 阻塞，无源码改动；用户随后授权 Codex 接手并明确要求 Luna 执行，未绕过门禁或改模型配置。
-- 保留：`/Users/zjx/Developer/scratch/codex/zjx-download-ui-20261023/` 的构建/签名包核对现场与日志，及前次状态盘点 scratch；按项目规则未清理构建诊断。AGY 失败任务记录保留，未接受失败结果。
+- 保留：`~/Developer/scratch/codex/zjx-download-ui-20261023/` 的构建/签名包核对现场与日志，及前次状态盘点 scratch；按项目规则未清理构建诊断。AGY 失败任务记录保留，未接受失败结果。
 
 ## 上次交付概要（历史）
 
@@ -75,7 +75,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 完成：01界面/生命周期、02状态/持久化、03传输/后台文件处理、04Chrome交接、05桥接/CLI；R-01…R-17及接缝实现见repair-review-20261018.md与5份worker记录。
 - 主代理补齐：同ID导入等待、部分持久化回执、绝对期限与审批取消、窗口关闭后入口、表单取消、cURL/范围边界、更新器团队/图标绑定、MV3模块声明；修正统一构建暴露的返回类型/Sendable捕获/参数顺序问题。
 - 实际构建：Xcode Release x86_64+arm64 exit0（BUILD SUCCEEDED）；SwiftPM CLI arm64、x86_64均exit0；npm run build:chrome exit0。所有失败尝试日志保留，未将构建成功当功能通过。
-- 签名/安装：Apple Development，TeamIdentifier ZNSTKHPLY3；codesign --verify --deep --strict通过；名称、Bundle ID和icns字节不变。App/Native Host/Framework/CLI均双架构；仅ZJXDownloadCore.framework，无旧框架残留。
+- 签名/安装：Apple Development，TeamIdentifier (redacted)；codesign --verify --deep --strict通过；名称、Bundle ID和icns字节不变。App/Native Host/Framework/CLI均双架构；仅ZJXDownloadCore.framework，无旧框架残留。
 - 安装：`/Applications/zjx-download.app`。
 - 产物：现用state-v2与legacy state安装前后SHA-256一致；源图标8文件一致；未迁移、清空任务或访问凭据。
 - Chrome：产物2.0.1；固定ID ikfafcgjoghicpkoolbofdaoonendhak；既有专属Native Messaging注册仍指向安装路径，未改注册或日用Chrome。需用户重新加载新版扩展。
@@ -129,7 +129,7 @@ Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx
 - 已完成：新增编辑任务/批量预览、队列与分类管理、退出确认、单实例锁、系统声音/通知/登录项，以及表格列/排序状态保存。
 - 已完成：最终 Xcode Release Universal 构建、Chrome MV3 构建、Apple Development 签名、ZIP 打包和严格签名核对。
 - 已完成：SwiftPM arm64 与 x86_64 Release CLI 构建并合并为 Universal `bin/zjx-download-cli`；单独签名，不安装到全局 PATH。
-- 已安装：`/Applications/zjx-download.app`；Bundle ID `com.zjx.download`、名称 `zjx-download`、版本 `2.0.0`、build `20261018.1`、架构 x86_64/arm64，TeamIdentifier `ZNSTKHPLY3`。Hotfix App 未启动。
+- 已安装：`/Applications/zjx-download.app`；Bundle ID `com.zjx.download`、名称 `zjx-download`、版本 `2.0.0`、build `20261018.1`、架构 x86_64/arm64，TeamIdentifier `(redacted)`。Hotfix App 未启动。
 - 已配置：用户级 Chrome Native Messaging manifest，仅允许扩展 `ikfafcgjoghicpkoolbofdaoonendhak`，指向 App 内 Native Host；未操作或重启 Chrome。
 - 已交付：含签名 App、App ZIP、Universal CLI、Chrome 扩展（`browser-extension/dist/chrome/`）、许可/署名、版本说明、SHA-256 清单和测试文档。
 - 已归档：最终构建不含 DerivedData/cache。
