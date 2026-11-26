@@ -145,6 +145,23 @@ struct SettingsWindow: View {
                 Toggle("工具栏显示文字", isOn: binding(\.showToolbarLabels))
                 Toggle("使用相对日期", isOn: binding(\.useRelativeDates))
             }
+
+            Section("关于与作者") {
+                LabeledContent("重构作者") {
+                    Text("张家鑫 · Xin (@xxkingstuggle)")
+                        .fontWeight(.medium)
+                }
+                LabeledContent("官方主页") {
+                    HStack(spacing: 12) {
+                        Link("官方网站 myzjx.com", destination: URL(string: "https://myzjx.com")!)
+                        Link("产品主页", destination: URL(string: "https://myzjx.com/software/zjx-download/")!)
+                        Link("GitHub", destination: URL(string: "https://github.com/xxkingstuggle")!)
+                    }
+                }
+                Text("© 2026 Xin (@xxkingstuggle) · Apache-2.0，保留上游 AB Download Manager 原作者署名。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding(16)

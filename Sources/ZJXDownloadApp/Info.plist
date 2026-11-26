@@ -13,7 +13,7 @@
   <key>CFBundleVersion</key><string>20261117.2</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSHumanReadableCopyright</key><string>Copyright © zjx-download contributors. Apache-2.0.</string>
+  <key>NSHumanReadableCopyright</key><string>© 2026 Xin (@xxkingstuggle) · myzjx.com · Apache-2.0 (retains AB Download Manager upstream attribution)</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
 </dict>
 </plist>

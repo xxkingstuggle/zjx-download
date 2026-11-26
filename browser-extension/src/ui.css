@@ -655,3 +655,38 @@ main.options-page {
 #result[data-ok="true"] {
   color: var(--success);
 }
+
+.brand-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.brand-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.brand-footer a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.brand-footer--options {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding: 12px 4px 4px;
+}
+
+.brand-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
