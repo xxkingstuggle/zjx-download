@@ -526,7 +526,7 @@ public final class IntegrationServer {
             }
             var statusPayload: [String: Any] = [
                 "ok": true,
-                "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.4",
+                "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.5",
                 "apiRequiresKey": authSettings.requiresKey,
                 "activeCount": activeCount,
                 "queuedCount": queuedCount,
