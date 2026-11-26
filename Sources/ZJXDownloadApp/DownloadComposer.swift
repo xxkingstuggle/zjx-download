@@ -51,10 +51,11 @@ struct DownloadComposer: View {
                 Picker("文件重名", selection: $conflict) { Text("自动编号").tag(ConflictPolicy.rename); Text("替换").tag(ConflictPolicy.replace); Text("取消此次添加").tag(ConflictPolicy.cancel) }.disabled(editingTaskID != nil)
                 Toggle("添加后开始下载", isOn: $startNow).disabled(editingTaskID != nil)
             }
+            .formStyle(.grouped)
             if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
             HStack { Spacer(); Button(editingTaskID == nil ? "添加并关闭" : "保存更改") { submit() }.keyboardShortcut(.defaultAction).disabled(busy || address.isEmpty) }
         }
-        .padding(22).frame(width: 620, height: 520)
+        .padding(22).frame(minWidth: 600, idealWidth: 640, minHeight: 500, idealHeight: 560)
         .onAppear(perform: loadDraft)
         .onDisappear { submissionWork?.cancel(); submissionWork = nil }
         .confirmationDialog("更改会重置未完成进度", isPresented: $showEditResetConfirmation) {
@@ -154,6 +155,7 @@ struct DownloadComposer: View {
 struct BatchImportView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var coordinator: TaskCoordinator
+    var initialText: String? = nil
     @State private var text = ""
     @State private var resultText = ""
     @State private var folder = ""
@@ -224,10 +226,16 @@ struct BatchImportView: View {
                     .keyboardShortcut(.defaultAction).disabled(busy || selected.isEmpty)
             }
             if !resultText.isEmpty { ScrollView { Text(resultText).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }.frame(maxHeight: 100) }
-        }.padding(20).frame(width: 820, height: 720)
+        }.padding(20).frame(minWidth: 760, idealWidth: 840, minHeight: 620, idealHeight: 720)
         .onAppear {
             if folder.isEmpty { folder = coordinator.data.settings.defaultDownloadDirectory }
-            if text.isEmpty { text = NSPasteboard.general.string(forType: .string) ?? "" }
+            if text.isEmpty {
+                if let initialText, !initialText.isEmpty {
+                    text = initialText
+                } else {
+                    text = NSPasteboard.general.string(forType: .string) ?? ""
+                }
+            }
         }
         .onDisappear { submissionWork?.cancel(); submissionWork = nil }
         .onReceive(NotificationCenter.default.publisher(for: .importTextRequested)) { note in if let text = note.object as? String { self.text = text } }
@@ -274,9 +282,18 @@ struct BatchImportView: View {
         let requests = selected.sorted().compactMap { index -> CreateDownloadRequest? in
             guard items.indices.contains(index) else { return nil }
             let item = items[index]
+            var headers = item.headers
+            if let userAgent = item.userAgent, !userAgent.isEmpty,
+               !headers.keys.contains(where: { $0.caseInsensitiveCompare("User-Agent") == .orderedSame }) {
+                headers["User-Agent"] = userAgent
+            }
+            if let username = item.username, let password = item.password, !(username.isEmpty && password.isEmpty),
+               !headers.keys.contains(where: { $0.caseInsensitiveCompare("Authorization") == .orderedSame }) {
+                headers["Authorization"] = "Basic " + Data("\(username):\(password)".utf8).base64EncodedString()
+            }
             return CreateDownloadRequest(sourceURL: item.url, pageURL: item.downloadPage,
                                          displayName: item.suggestedName, destinationDirectory: destination,
-                                         headers: item.headers,
+                                         headers: headers,
                                          queueID: queueID, startImmediately: startNow)
         }
         guard !requests.isEmpty else { return }

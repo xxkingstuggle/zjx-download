@@ -1,10 +1,25 @@
 # 阻塞与交付边界
 
-更新于 2026-11-17。
+更新于 2026-11-25（分支 `zjx/hackathon-polish`，未覆盖 `/Applications/zjx-download.app`）。
 
 ## 当前阻塞
 
-2.0.4/build20261117.2 已构建、签名并安装。主窗口透射、浅色与深色对比度和降低透明度效果待用户按 A-071 验收，功耗未测。
+`/Applications/zjx-download.app` 现役安装仍为 `2.0.4/build20261117.2`（本轮未替换、未触碰日用 `Application Support` 与钥匙串）。`zjx/hackathon-polish` 分支已完成静态重构、单测补齐及隔离沙箱真机动态验收，但尚未合入 `main`、未做 Universal Release 签名安装。
+
+### 2026-11-25 Round 3 隔离沙箱动态验收已闭合项（分支 `zjx/hackathon-polish`）
+
+- **A-053 / A-054（冷启、空闲功耗与服务生命周期）**：通过 `open -n -F -g --env CFFIXED_USER_HOME=<sandbox>` 启动隔离 Debug 版 `zjx-download.app`，主窗口正常挂载上屏（`layer=0`, `1249×923`），`~/Library/Logs/DiagnosticReports` 新增 0 崩溃；0 任务静置 10 秒（5 次 × 2 秒 `ps` 采样）实测**平均 CPU `0.00%`（峰值 `0.0%`）、平均 RSS `136.7 MB`（`136.6–136.9 MB`）**；`PUT /settings/extension` 热更新配置前后 `lsof` 监听句柄完全不变（`FD 5u`、`DEVICE 0xd5eadd34347d394`）；`zjx-download-cli gui exit` 正常退出。
+- **A-041（仅回环监听与鉴权热更新 — 后端与 CLI 层）**：实测仅绑定 `127.0.0.1:15199`（无 `*:port` 或 IPv6 暴露）；单测 `testIntegrationServerHotReloadAuthAndStatusTasksEndpoints` 实测开启 `apiRequiresKey` 与轮换 API Key 时 `lsof` 监听 socket FD/DEVICE 及 `activeListenerGeneration` 全程不变，无密钥 / 旧密钥立即 `401`、新密钥立即 `200 pong`。
+- **A-008 / A-013 / A-044 / A-055（CLI 驱动分片续传、无 Range 回退与零残留）**：实测 6 MiB 4 连接分片下载中途暂停（`range-parts-1/` 存在且已提交断点 `524,288 B`）→ 恢复完成 → SHA-256 100% 匹配 → **`range-parts-1/` 与 `staging/` 残留为 0**；1 MiB 无 Range 源自动单连接回退完成且 SHA-256 匹配。
+- **A-030 / A-031（HLS 点播合并与直播拒收）**：UTF-8 BOM + 3 片 TS 点播清单合并完成且 SHA-256 匹配，`hls-3/` 零残留；无 `#EXT-X-ENDLIST` 直播清单明确失败拒收，不挂起。
+- **自动化与扩展渲染门禁**：`swift test` 22/22 通过（`0.465s`）；`node --test browser-extension/tests/extension-logic.test.mjs` 5/5 通过（`53.7ms`）；`node browser-extension/scripts/build-chrome.mjs` 构建完整；无头 Chrome CDP（本地回环静态服务 + MV3 `chrome.*` 测试桩 + 模拟本地 API）验证 `popup.html`（含活跃任务卡片）与 `options.html` 深浅色令牌切换正常，0 未捕获异常、0 `console.error`、0 资源缺失。
+
+### 仍待用户实机 / 正式发版验收项（未虚报）
+
+- **Chrome 真实扩展加载与手点交互（A-036…A-040、A-042、A-043、A-052、A-060）**：新版品牌 Chrome 命令行默认屏蔽 `--load-extension`，本次未在日用 Chrome 手动加载扩展点按浮窗、自动接管、Native Messaging 唤起与快捷键。
+- **macOS 视觉观感与人机交互（A-002…A-007、A-012、A-014…A-029、A-032…A-035、A-045…A-051、A-068…A-071）**：Liquid Glass 透射、深浅色主观对比度、「降低透明度」系统切换、跨完全重启恢复（A-007）、真实钥匙串设置页交互及正式签名包替换后回归，均待合入并做 Universal Release 安装后由用户实机验收。
+
+以下为 2026-11-17 2.0.4 安装时记录：
 
 - 2.0.3 的 `Network.NWError 22 — Invalid argument` 来自监听器初始化时重复指定端口。源码已修复，实际监听及 Chrome/CLI 交接待用户按 A-041、A-042 验收。
 - A-001…A-071 均待用户测试。本轮未启动新版或 Chrome，未执行功能、UI、下载或性能自测。

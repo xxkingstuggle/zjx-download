@@ -1,5 +1,6 @@
 import {getConfig, saveConfig, validPort} from "./storage.js";
-import {fetchExtensionSettings, ping, sendItems} from "./app-api.js";
+import {controlTask, fetchExtensionSettings, fetchStatus, fetchTasks, ping, saveExtensionSettings, sendItems} from "./app-api.js";
+import {isHttpUrl, matchesExtension, parseContentDispositionName, wildcardMatch} from "./utils.js";
 
 const icon = chrome.runtime.getURL("icons/icon-16.png");
 const requestHeadersByID = new Map();
@@ -7,6 +8,9 @@ const activeCaptures = new Map();
 const recentDownloadEvents = new Map();
 const pendingHLSRequests = new Map();
 const bypassedTabs = new Set();
+const tabMediaCandidates = new Map();
+const HANDOFF_WATCHDOG_ALARM = "zjx-handoff-watchdog";
+const MAX_CANDIDATES_PER_TAB = 30;
 const MAX_TRACKED = 300;
 const MAX_CAPTURE_READINESS_WAITERS = 300;
 const MAX_PENDING_HANDOFFS = 4;
@@ -33,6 +37,8 @@ let captureRefreshScheduled = false;
 let captureReadinessWaiters = 0;
 let recoveryPromise = null;
 let journalWriteChain = Promise.resolve();
+let menuRebuildChain = Promise.resolve();
+let keepAliveTimer = null;
 const handoffJournal = new Map();
 
 registerCaptureListenersSynchronously();
@@ -51,14 +57,61 @@ chrome.storage.onChanged.addListener((_changes, areaName) => {
 });
 chrome.tabs.onRemoved.addListener(tabId => {
   bypassedTabs.delete(tabId);
+  tabMediaCandidates.delete(tabId);
   for (const [key, record] of requestHeadersByID) if (record.tabId === tabId) requestHeadersByID.delete(key);
   for (const [id, capture] of activeCaptures) {
     if (capture.tabId === tabId && capture.state === "candidate") discardCapture(id);
   }
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "loading") bypassedTabs.delete(tabId);
+  if (changeInfo.status === "loading") {
+    bypassedTabs.delete(tabId);
+    tabMediaCandidates.delete(tabId);
+  }
   if (changeInfo.status === "complete" && tab.url) injectContentScript(tabId, tab.url);
+});
+chrome.commands?.onCommand.addListener(async command => {
+  if (command !== "toggle-auto-capture") return;
+  const config = await getEffectiveConfig();
+  const next = !config.autoCapture;
+  if (next) {
+    let granted = false;
+    try {
+      granted = await chrome.permissions.contains({permissions: ["webRequest"], origins: ["http://*/*", "https://*/*"]});
+    } catch {}
+    if (!granted) {
+      await notify("zjx-download：需要网站权限", "请先在扩展弹窗或设置页授权网站访问权限，再开启自动接管。", null, false);
+      return;
+    }
+  }
+  const {synced} = await saveExtensionSettings({autoCapture: next, ...(next ? {siteAccessGranted: true} : {})});
+  effectiveConfigCache = null;
+  await notify(
+    "zjx-download",
+    next
+      ? (synced ? "已通过快捷键开启自动接管（已同步 App）。" : "已通过快捷键开启自动接管。")
+      : (synced ? "已通过快捷键关闭自动接管（已同步 App）。" : "已通过快捷键关闭自动接管。"),
+    null,
+    false
+  );
+});
+chrome.alarms?.onAlarm.addListener(async alarm => {
+  if (alarm?.name !== HANDOFF_WATCHDOG_ALARM) return;
+  pruneCaptureCache();
+  if (pendingHandoffCount() > 0) {
+    ensureHandoffKeepAlive();
+    return;
+  }
+  try {
+    const stored = await chrome.storage.session.get(HANDOFF_SESSION_KEY);
+    const records = Array.isArray(stored?.[HANDOFF_SESSION_KEY]) ? stored[HANDOFF_SESSION_KEY] : [];
+    if (records.length > 0) {
+      recoveryPromise = null;
+      await ensureHandoffRecovery();
+    } else {
+      await clearHandoffWatchdogIfIdle();
+    }
+  } catch {}
 });
 chrome.permissions.onRemoved.addListener(permissions => {
   effectiveConfigCache = null;
@@ -84,11 +137,29 @@ rebuildMenus();
 void startCaptureIfAllowed();
 
 async function rebuildMenus() {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({id: "zjx-download-link", title: "使用 zjx-download 下载", contexts: ["link", "image", "video", "audio"]});
-    chrome.contextMenus.create({id: "zjx-download-selection", title: "下载选中区域中的链接…", contexts: ["selection"]});
-    chrome.contextMenus.create({id: "zjx-download-page", title: "下载当前页媒体候选", contexts: ["page"]});
+  const operation = menuRebuildChain.catch(() => {}).then(async () => {
+    await new Promise(resolve => {
+      chrome.contextMenus.removeAll(() => {
+        void chrome.runtime.lastError;
+        resolve();
+      });
+    });
+    const definitions = [
+      {id: "zjx-download-link", title: "使用 zjx-download 下载", contexts: ["link", "image", "video", "audio"]},
+      {id: "zjx-download-selection", title: "下载选中区域中的链接…", contexts: ["selection"]},
+      {id: "zjx-download-page", title: "下载当前页媒体候选", contexts: ["page"]}
+    ];
+    for (const definition of definitions) {
+      await new Promise(resolve => {
+        chrome.contextMenus.create(definition, () => {
+          void chrome.runtime.lastError;
+          resolve();
+        });
+      });
+    }
   });
+  menuRebuildChain = operation;
+  await operation;
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -126,6 +197,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     if (message?.type === "zjx-submit") { sendResponse(await submit(message.items, sender.tab?.id)); return; }
     if (message?.type === "zjx-ping") { sendResponse(await ping()); return; }
+    if (message?.type === "zjx-status") {
+      const [pingResult, statusResult] = await Promise.all([ping(), fetchStatus()]);
+      sendResponse({ping: pingResult, status: statusResult});
+      return;
+    }
+    if (message?.type === "zjx-tasks") { sendResponse(await fetchTasks()); return; }
+    if (message?.type === "zjx-task-action") { sendResponse(await controlTask(message.id, message.action)); return; }
+    if (message?.type === "zjx-tab-media-count") {
+      const targetTabId = sender.tab?.id ?? message.tabId;
+      const map = targetTabId != null ? tabMediaCandidates.get(targetTabId) : null;
+      sendResponse({count: map ? map.size : 0});
+      return;
+    }
     if (message?.type === "zjx-config") { sendResponse({...await getEffectiveConfig(), cookiesPermissionGranted}); return; }
     if (message?.type === "zjx-show-candidates") { sendResponse(await showTabCandidates(sender.tab?.id ?? message.tabId)); return; }
     if (message?.type === "zjx-bypass") {
@@ -404,7 +488,11 @@ async function onHeadersReceived(details) {
     try {
       const variants = await parseHLS(details.url, page, config, details.tabId, details.frameId, details.requestId, controller.signal);
       if (pendingHLSRequests.get(details.requestId) !== controller || !captureListenersEnabled || eventEpoch !== captureEpoch) return;
-      if (variants.length) await sendToContent(details.tabId, {type: "zjx-media-candidates", items: variants.map(v => ({...v, page}))}, details.frameId);
+      if (variants.length) {
+        const enriched = variants.map(v => ({...v, page}));
+        recordTabCandidates(details.tabId, enriched);
+        await sendToContent(details.tabId, {type: "zjx-media-candidates", items: enriched}, details.frameId);
+      }
     } finally { if (pendingHLSRequests.get(details.requestId) === controller) pendingHLSRequests.delete(details.requestId); }
     return;
   }
@@ -415,6 +503,7 @@ async function onHeadersReceived(details) {
     if (/\.(?:ts|m4s|cmfv|cmfa|aac)$/.test(mediaPath) || ["video/mp2t", "video/iso.segment"].includes(mime)) return;
     if (size && size < config.minimumSizeKB * 1024) return;
     const item = {link: details.url, type: "http", downloadPage: page, suggestedName: name, description: mime, headers: config.sendRequestHeaders ? getExactRequestHeaders(details) : {}};
+    recordTabCandidates(details.tabId, [item]);
     await sendToContent(details.tabId, {type: "zjx-media-candidates", items: [item]}, details.frameId);
     return;
   }
@@ -889,6 +978,7 @@ async function saveHandoffMarker(capture, state) {
   });
   journalWriteChain = operation;
   await operation;
+  scheduleHandoffWatchdog();
 }
 async function clearHandoffMarker(downloadID) {
   const operation = journalWriteChain.catch(() => {}).then(async () => {
@@ -900,6 +990,7 @@ async function clearHandoffMarker(downloadID) {
   });
   journalWriteChain = operation;
   try { await operation; } catch {}
+  await clearHandoffWatchdogIfIdle();
 }
 async function restoreChromeDownload(capture, notice = "") {
   if (notice && !capture.restoreNotice) capture.restoreNotice = notice;
@@ -960,7 +1051,69 @@ function registerCaptureListenersSynchronously() {
     if (event && !event.hasListener(onDownloadCreated)) event.addListener(onDownloadCreated);
   } catch {}
 }
-async function showTabCandidates(tabId) { if (tabId != null) await sendToContent(tabId, {type: "zjx-open-media"}); return {shown: tabId != null}; }
+function recordTabCandidates(tabId, items) {
+  if (!Number.isInteger(tabId) || tabId < 0 || !Array.isArray(items) || !items.length) return;
+  let bucket = tabMediaCandidates.get(tabId);
+  if (!bucket) {
+    bucket = new Map();
+    tabMediaCandidates.set(tabId, bucket);
+  }
+  for (const item of items) {
+    if (!item?.link) continue;
+    bucket.delete(item.link);
+    bucket.set(item.link, item);
+  }
+  while (bucket.size > MAX_CANDIDATES_PER_TAB) {
+    bucket.delete(bucket.keys().next().value);
+  }
+}
+function scheduleHandoffWatchdog() {
+  try {
+    chrome.alarms?.create(HANDOFF_WATCHDOG_ALARM, {delayInMinutes: 1, periodInMinutes: 1});
+  } catch {}
+  ensureHandoffKeepAlive();
+}
+function ensureHandoffKeepAlive() {
+  if (keepAliveTimer) return;
+  keepAliveTimer = setInterval(() => {
+    if (pendingHandoffCount() === 0 && handoffJournal.size === 0) {
+      clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+      return;
+    }
+    try { chrome.runtime.getPlatformInfo(() => { void chrome.runtime.lastError; }); } catch {}
+  }, 20_000);
+}
+async function clearHandoffWatchdogIfIdle() {
+  if (pendingHandoffCount() > 0 || handoffJournal.size > 0) return;
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+  }
+  try { await chrome.alarms?.clear(HANDOFF_WATCHDOG_ALARM); } catch {}
+}
+async function showTabCandidates(tabId) {
+  if (tabId == null) return {shown: false, count: 0, reason: "找不到活动标签页。"};
+  let tab = null;
+  try { tab = await chrome.tabs.get(tabId); } catch {}
+  if (!tab?.url || !isHttpUrl(tab.url)) {
+    return {shown: false, count: 0, reason: "当前页面不支持媒体抓取（仅支持 http/https 页面）。"};
+  }
+  const config = await getEffectiveConfig();
+  if (!config.siteAccessGranted) {
+    return {shown: false, count: 0, reason: "请先开启“显示选区与媒体候选”并授权网站访问权限。"};
+  }
+  await injectContentScript(tabId, tab.url);
+  const cached = [...(tabMediaCandidates.get(tabId)?.values() || [])];
+  try {
+    const reply = await chrome.tabs.sendMessage(tabId, {type: "zjx-open-media", items: cached});
+    const count = typeof reply?.count === "number" ? reply.count : cached.length;
+    if (reply?.opened) return {shown: true, count};
+    return {shown: false, count, reason: count === 0 ? "当前页面暂未捕获到音频、视频或 HLS 媒体流。" : "网页浮窗未显示，请检查是否关闭了页面候选开关。"};
+  } catch {
+    return {shown: false, count: cached.length, reason: "无法连接当前页面脚本，请刷新页面后重试。"};
+  }
+}
 async function parseHLS(url, page, config, tabId, frameId, requestId, abortSignal) {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -1018,14 +1171,6 @@ async function readBoundedResponseText(response, maxBytes) {
   return chunks.join("");
 }
 function isIgnored(url, page, patterns) { return (patterns || []).some(pattern => wildcard(pattern, url) || wildcard(pattern, page)); }
-function wildcard(pattern, value) { if (typeof pattern !== "string" || !value) return false; const escaped = pattern.trim().replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*"); try { return new RegExp(`^${escaped}$`, "i").test(value); } catch { return false; } }
-function matchesExtension(name, extensions) { const ext = name.split(".").pop()?.toLowerCase(); return extensions?.length ? extensions.includes(ext) : true; }
-function fileName(disposition, url) {
-  const match = /filename\*?=(?:UTF-8''|"?)([^";]+)/i.exec(disposition || "");
-  if (match) {
-    const value = match[1].trim().replaceAll('"', "");
-    try { return decodeURIComponent(value); } catch { return value; }
-  }
-  try { return decodeURIComponent(new URL(url).pathname.split("/").pop() || ""); } catch { return ""; }
-}
-function isHTTP(value) { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } }
+function wildcard(pattern, value) { return wildcardMatch(pattern, value); }
+function fileName(disposition, url) { return parseContentDispositionName(disposition, url); }
+function isHTTP(value) { return isHttpUrl(value); }

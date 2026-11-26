@@ -4,6 +4,7 @@ import ZJXDownloadCore
 
 @main
 struct NativeHost {
+    private static let loopbackSession = URLSession(configuration: NetworkConfiguration.loopbackSessionConfiguration())
     private static let maximumRequestIDBytes = 128
     private static let maximumAPIKeyBytes = 4096
     private static let maximumImportItems = 1_000
@@ -146,7 +147,8 @@ struct NativeHost {
                         guard sleepSeconds > 0 else {
                             return failure(id, "REQUEST_TIMEOUT", "等待应用就绪时下载请求已超过调用方截止时间。")
                         }
-                        try? await Task.sleep(for: .seconds(sleepSeconds))
+                        do { try await Task.sleep(for: .seconds(sleepSeconds)) }
+                        catch { return failure(id, "REQUEST_TIMEOUT", "等待应用就绪被取消。") }
                     }
                     if ready { break }
                 }
@@ -283,10 +285,27 @@ struct NativeHost {
     }
 
     private static func launchApp() throws {
+        let appURL = resolveAppBundleURL()
+        guard FileManager.default.fileExists(atPath: appURL.path) else {
+            throw HostAPIError.unreachable("找不到应用：\(appURL.path)")
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", "/Applications/zjx-download.app"]
+        process.arguments = ["-g", "-a", appURL.path, "--args", "--background"]
         try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw HostAPIError.unreachable("无法启动应用（退出码 \(process.terminationStatus)）。")
+        }
+    }
+
+    private static func resolveAppBundleURL() -> URL {
+        var cursor = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        while cursor.path != "/" {
+            if cursor.pathExtension == "app" { return cursor }
+            cursor.deleteLastPathComponent()
+        }
+        return URL(fileURLWithPath: "/Applications/zjx-download.app")
     }
 
     private static func requestAPI(path: String, body: Data, port: Int, apiKey: String,
@@ -314,7 +333,7 @@ struct NativeHost {
 
         let data: Data
         let response: URLResponse
-        do { (data, response) = try await URLSession.shared.data(for: request) }
+        do { (data, response) = try await loopbackSession.data(for: request) }
         catch {
             if deadlineLimitsRequest, (error as? URLError)?.code == .timedOut {
                 throw requestTimeoutError()

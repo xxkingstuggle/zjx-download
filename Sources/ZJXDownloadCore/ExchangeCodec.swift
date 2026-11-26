@@ -23,7 +23,9 @@ public enum ExchangeCodec {
         for name in headers.keys.sorted() {
             if let value = headers[name] { lines.append("  -H '\(shellQuote(name + ": " + value))'") }
         }
-        if let page = task.pageURL { lines.append("  -H 'Referer: \(shellQuote(page))'") }
+        if let page = task.pageURL, !headers.keys.contains(where: { $0.caseInsensitiveCompare("Referer") == .orderedSame }) {
+            lines.append("  -H 'Referer: \(shellQuote(page))'")
+        }
         lines.append("  -o '\(shellQuote(task.displayName))'")
         return lines.joined(separator: " \\\n")
     }

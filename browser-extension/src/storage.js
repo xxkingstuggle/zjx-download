@@ -1,6 +1,7 @@
 export const DEFAULTS = {
   port: 15151,
   apiKey: "",
+  apiRequiresKey: false,
   autoCapture: false,
   showPageWidgets: true,
   sendRequestHeaders: false,

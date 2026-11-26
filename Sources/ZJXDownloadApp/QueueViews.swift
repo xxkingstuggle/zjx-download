@@ -17,11 +17,24 @@ struct QueueViews: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Text(queue.name).font(.headline)
+                            if let next = coordinator.queueScheduler.nextEvent(for: queue) {
+                                Label("下次\(next.kind)：\(next.date.formatted(date: .abbreviated, time: .shortened))", systemImage: "calendar.badge.clock")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(.quaternary.opacity(0.6), in: Capsule())
+                            }
                             Spacer()
                             Button("上移") { reorder(queue.id, offset: -1) }.disabled(index == 0)
                             Button("下移") { reorder(queue.id, offset: 1) }.disabled(index == coordinator.data.queues.count - 1)
                             Button("重命名") { editingQueueID = queue.id; newName = queue.name }
-                            Text(queue.isRunning ? "运行中" : "已停止").foregroundStyle(.secondary)
+                            Text(queue.isRunning ? "运行中" : "已停止")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(queue.isRunning ? Color.green : Color.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background((queue.isRunning ? Color.green : Color.secondary).opacity(0.14), in: Capsule())
                         }
                         HStack {
                             Stepper("并发任务：\(queue.concurrency)", value: binding(queue.id, \.concurrency), in: 1...32)
@@ -72,7 +85,7 @@ struct QueueViews: View {
                 }
             }
             if let error { Text(error).foregroundStyle(.red) }
-        }.padding(20).frame(width: 780, height: 700)
+        }.padding(20).frame(minWidth: 720, idealWidth: 800, minHeight: 560, idealHeight: 680)
         .confirmationDialog("清空队列成员？", isPresented: Binding(
             get: { pendingClearQueueID != nil }, set: { if !$0 { pendingClearQueueID = nil } }
         )) {
@@ -86,11 +99,20 @@ struct QueueViews: View {
 
     private func binding<Value>(_ id: Int64, _ path: WritableKeyPath<QueueRecord, Value>) -> Binding<Value> {
         Binding(get: { coordinator.data.queues.first(where: { $0.id == id })?[keyPath: path] ?? coordinator.data.queues[0][keyPath: path] },
-                set: { value in try? coordinator.updateQueue(id) { $0[keyPath: path] = value } })
+                set: { value in
+                    do { try coordinator.updateQueue(id) { $0[keyPath: path] = value }; error = nil }
+                    catch { self.error = error.localizedDescription }
+                })
     }
     private func dayBinding(_ id: Int64, day: Int) -> Binding<Bool> {
         Binding(get: { coordinator.data.queues.first(where: { $0.id == id })?.schedule.days.contains(day) ?? false }, set: { enabled in
-            try? coordinator.updateQueue(id) { if enabled { $0.schedule.days.insert(day) } else if $0.schedule.days.count > 1 { $0.schedule.days.remove(day) } }
+            do {
+                try coordinator.updateQueue(id) {
+                    if enabled { $0.schedule.days.insert(day) }
+                    else if $0.schedule.days.count > 1 { $0.schedule.days.remove(day) }
+                }
+                error = nil
+            } catch { self.error = error.localizedDescription }
         })
     }
     private func timeBinding(_ id: Int64, start: Bool) -> Binding<Date> {
@@ -100,7 +122,13 @@ struct QueueViews: View {
             return Calendar.current.date(from: parts) ?? .now
         }, set: { date in
             let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
-            try? coordinator.updateQueue(id) { if start { $0.schedule.startHour = parts.hour ?? 0; $0.schedule.startMinute = parts.minute ?? 0 } else { $0.schedule.stopHour = parts.hour ?? 0; $0.schedule.stopMinute = parts.minute ?? 0 } }
+            do {
+                try coordinator.updateQueue(id) {
+                    if start { $0.schedule.startHour = parts.hour ?? 0; $0.schedule.startMinute = parts.minute ?? 0 }
+                    else { $0.schedule.stopHour = parts.hour ?? 0; $0.schedule.stopMinute = parts.minute ?? 0 }
+                }
+                error = nil
+            } catch { self.error = error.localizedDescription }
         })
     }
     private func createQueue() { do { _ = try coordinator.createQueue(name: newName); newName = "" } catch { self.error = error.localizedDescription } }

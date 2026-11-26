@@ -2,6 +2,21 @@
 
 Git交付入口：用户独立私有仓库 `https://github.com/xxkingstuggle/zjx-download`，默认正式分支 `main`。2026-10-19用户澄清不能只交工作分支；下方早期“只同步任务分支、不改main”为当时处理记录，由本次指令更新。
 
+## `zjx/hackathon-polish` 核心加固、前后端打磨与隔离沙箱动态验收（2026-11-25，Asia/Shanghai）
+
+- **分支与隔离边界**：全部改动位于独立分支 `zjx/hackathon-polish`（基于 `main@f8930e24`，未修改 `main`、未 `git push`）。动态验收在临时 `CFFIXED_USER_HOME` 沙箱执行，未覆盖 `/Applications/zjx-download.app`，未改动用户日用 `Application Support`（`state-v2.json` mtime 不变）或登录钥匙串。
+- **自动化单测与扩展构建**：
+  - `nice -n 15 swift test`：**22/22 通过**（`0.465s`），含本轮补修的 cURL 多 `-b/--cookie` 拼接、`HEAD 403/405 -> GET Range: bytes=0-0` 探测回退，以及 `IntegrationServer` 开启鉴权与轮换 API Key 的 `lsof` socket FD/DEVICE 不变性断言。
+  - `node --test browser-extension/tests/extension-logic.test.mjs`：**5/5 通过**（`53.7ms`）。
+  - `node browser-extension/scripts/build-chrome.mjs`：干净生成 `browser-extension/dist/chrome/`（v2.0.4，不污染跟踪工作区）。
+- **隔离沙箱真机动态运行证据**：
+  - **冷启与仅回环监听**：Debug 构建（`xcodebuild -jobs 2`，验证后已将 `build/` 移入废纸篓）经 `open -n -F -g --env CFFIXED_USER_HOME=...` 启动，`lsof` 证实仅监听 `127.0.0.1:15199`；主窗口正常上屏（`layer=0`, `1249×923`），新增崩溃日志为 0。
+  - **空闲低功耗**：0 任务静置 10 秒 5 次 `ps` 采样实测**平均 CPU `0.00%`（峰值 `0.0%`）、平均 RSS `136.7 MB`**，确认移除 1 秒空转轮询后的低功耗表现。
+  - **热更新不断连**：`PUT /settings/extension` 触发 `IntegrationServer.restart(settings:)` 前后 `lsof` 监听 FD（`5u`）与内核 socket 地址（`0xd5eadd34347d394`）完全一致。
+  - **CLI + 本地 HTTP 实测传输**：6 MiB 4 连接分片下载暂停（`range-parts-1/` 已落盘断点 `524,288 B`）→ 恢复完成 → SHA-256 100% 一致 → `range-parts-1/` 与 `staging/` 零残留；1 MiB 无 Range 自动单连接回退完成（SHA-256 一致）；UTF-8 BOM 3 分片 HLS 点播合并完成且 `hls-3/` 零残留；无 `#EXT-X-ENDLIST` 直播清单明确失败拒收；`zjx-download-cli gui exit` 干净退出且无后台残留进程。
+  - **扩展页面无头渲染**：独立临时配置无头 Chrome CDP（本地回环静态服务 + MV3 `chrome.*` 测试桩 + 模拟本地 API）加载 `popup.html`（含活跃任务卡片）与 `options.html`，深浅色令牌（`#f3f5f8` / `#14161b`）切换正确，0 未捕获异常、0 `console.error`、0 资源缺失。
+- **未声称范围**：真机 Chrome 手动加载扩展点按交互、macOS 视觉主观观感 / Reduce Transparency 实机切换及正式 Universal Release 签名替换安装仍待后续合入发版验收，详见 [BLOCKED.md](BLOCKED.md)。
+
 ## 2.0.4 本机接口启动修复（2026-11-17，Asia/Shanghai）
 
 - 2.0.3 在启动时由 `requiredLocalEndpoint` 与 `NWListener` 初始化器重复指定相同端口。系统日志 `Local endpoint has port set, cannot override to 15151` 与该进程无 TCP 监听相符。2.0.4 仅由 `requiredLocalEndpoint` 指定 `127.0.0.1` 和用户所设端口，失败信息增加绑定地址和端口。诊断日志在 `/Users/zjx/Developer/scratch/codex/zjx-download-listener-20261117/listener-before.log`。

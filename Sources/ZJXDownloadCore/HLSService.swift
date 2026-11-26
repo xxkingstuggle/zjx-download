@@ -3,14 +3,63 @@ import Darwin
 import Foundation
 
 private final class HLSNetworkDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, @unchecked Sendable {
+    private final class StreamState {
+        var responseContinuation: CheckedContinuation<HTTPURLResponse, Error>?
+        let chunkContinuation: AsyncThrowingStream<Data, Error>.Continuation
+        var responseDelivered = false
+
+        init(chunkContinuation: AsyncThrowingStream<Data, Error>.Continuation) {
+            self.chunkContinuation = chunkContinuation
+        }
+    }
+
     private let allowInvalidTLS: Bool
     private let proxyUsername: String
     private let proxyPassword: String
+    private let streamLock = NSLock()
+    private var streams: [Int: StreamState] = [:]
 
     init(allowInvalidTLS: Bool, proxyUsername: String, proxyPassword: String) {
         self.allowInvalidTLS = allowInvalidTLS
         self.proxyUsername = proxyUsername
         self.proxyPassword = proxyPassword
+    }
+
+    func openChunkStream(for request: URLRequest, on session: URLSession) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, Error>) {
+        let dataTask = session.dataTask(with: request)
+        let taskID = dataTask.taskIdentifier
+        var continuationRef: AsyncThrowingStream<Data, Error>.Continuation?
+        let stream = AsyncThrowingStream<Data, Error> { continuation in
+            continuationRef = continuation
+            continuation.onTermination = { [weak self] _ in
+                dataTask.cancel()
+                self?.unregister(taskID: taskID)
+            }
+        }
+        guard let chunkContinuation = continuationRef else { throw CancellationError() }
+        let state = StreamState(chunkContinuation: chunkContinuation)
+        let response = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HTTPURLResponse, Error>) in
+                streamLock.lock()
+                state.responseContinuation = continuation
+                streams[taskID] = state
+                streamLock.unlock()
+                if Task.isCancelled {
+                    dataTask.cancel()
+                } else {
+                    dataTask.resume()
+                }
+            }
+        } onCancel: {
+            dataTask.cancel()
+        }
+        return (response, stream)
+    }
+
+    private func unregister(taskID: Int) {
+        streamLock.lock()
+        streams.removeValue(forKey: taskID)
+        streamLock.unlock()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
@@ -41,6 +90,55 @@ private final class HLSNetworkDelegate: NSObject, URLSessionDelegate, URLSession
             for name in NetworkConfiguration.sensitiveHeaderNames { safe.setValue(nil, forHTTPHeaderField: name) }
         }
         completionHandler(safe)
+    }
+}
+
+extension HLSNetworkDelegate: URLSessionDataDelegate {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        streamLock.lock()
+        let state = streams[dataTask.taskIdentifier]
+        let continuation = state?.responseContinuation
+        state?.responseContinuation = nil
+        state?.responseDelivered = true
+        streamLock.unlock()
+        if let http = response as? HTTPURLResponse {
+            continuation?.resume(returning: http)
+            completionHandler(.allow)
+        } else {
+            let error = DownloadEngineError.unsupportedContent("服务器没有返回有效的 HTTP 响应。")
+            continuation?.resume(throwing: error)
+            state?.chunkContinuation.finish(throwing: error)
+            unregister(taskID: dataTask.taskIdentifier)
+            completionHandler(.cancel)
+        }
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard !data.isEmpty else { return }
+        streamLock.lock()
+        let state = streams[dataTask.taskIdentifier]
+        streamLock.unlock()
+        state?.chunkContinuation.yield(data)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        streamLock.lock()
+        let state = streams.removeValue(forKey: task.taskIdentifier)
+        let continuation = state?.responseContinuation
+        state?.responseContinuation = nil
+        streamLock.unlock()
+        if let error {
+            let reported: Error = (error as NSError).code == NSURLErrorCancelled ? CancellationError() : error
+            continuation?.resume(throwing: reported)
+            state?.chunkContinuation.finish(throwing: reported)
+        } else {
+            if let continuation {
+                continuation.resume(throwing: DownloadEngineError.unsupportedContent("服务器未返回响应头即断开连接。"))
+            }
+            state?.chunkContinuation.finish()
+        }
     }
 }
 
@@ -92,7 +190,7 @@ private actor HLSResumeStore {
     }
 
     func prepare(taskID: Int64, generation: UInt64, root: URL, digest: String,
-                 segmentURLs: [String]) throws -> HLSResumeManifest {
+                 segmentURLs: [String], resetResume: Bool = false) throws -> HLSResumeManifest {
         try requireCurrent(taskID: taskID, generation: generation)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
@@ -101,7 +199,8 @@ private actor HLSResumeStore {
         let legacyURL = root.appendingPathComponent("resume.json")
         let header = HLSResumeJournalHeader(formatVersion: 1, playlistDigest: digest, segmentURLs: segmentURLs)
         var manifest: HLSResumeManifest
-        if let data = Self.readBoundedResume(at: journalURL),
+        if !resetResume,
+           let data = Self.readBoundedResume(at: journalURL),
            let (storedHeader, entries) = Self.decodeJournal(data),
            storedHeader.formatVersion == 1,
            storedHeader.playlistDigest == digest,
@@ -112,7 +211,8 @@ private actor HLSResumeStore {
                 completed[entry.index] = entry.segment
             }
             manifest = HLSResumeManifest(playlistDigest: digest, segmentURLs: segmentURLs, completed: completed)
-        } else if let data = Self.readBoundedResume(at: legacyURL),
+        } else if !resetResume,
+                  let data = Self.readBoundedResume(at: legacyURL),
                   let old = try? JSONDecoder().decode(HLSResumeManifest.self, from: data),
                   old.playlistDigest == digest, old.segmentURLs == segmentURLs {
             manifest = old
@@ -189,6 +289,12 @@ private actor HLSResumeStore {
         try flush(taskID: taskID, generation: generation)
     }
 
+    func clearTask(taskID: Int64) {
+        latestGeneration.removeValue(forKey: taskID)
+        activeGeneration.removeValue(forKey: taskID)
+        states.removeValue(forKey: taskID)
+    }
+
     private func requireCurrent(taskID: Int64, generation: UInt64) throws {
         guard activeGeneration[taskID] == generation else { throw CancellationError() }
     }
@@ -250,28 +356,24 @@ private actor HLSResumeStore {
 private actor HLSRateLimiter {
     private var bytesPerSecond: Double
     private var taskReservedUntil = Date.now
-    private var hostReservedUntil: [String: Date] = [:]
 
     init(bytesPerSecond: Int64) { self.bytesPerSecond = Double(max(0, bytesPerSecond)) }
 
-    func update(bytesPerSecond: Int64) { self.bytesPerSecond = Double(max(0, bytesPerSecond)) }
+    func update(bytesPerSecond: Int64) {
+        let next = Double(max(0, bytesPerSecond))
+        if next == 0 || next > self.bytesPerSecond {
+            taskReservedUntil = .now
+        }
+        self.bytesPerSecond = next
+    }
 
-    func reserve(_ byteCount: Int, host: String, hostLimit: Int64) -> TimeInterval {
-        guard byteCount > 0 else { return 0 }
+    func reserve(_ byteCount: Int) -> TimeInterval {
+        guard byteCount > 0, bytesPerSecond > 0 else { return 0 }
         let now = Date.now
-        var end = now
-        if bytesPerSecond > 0 {
-            let start = max(now, taskReservedUntil)
-            taskReservedUntil = start.addingTimeInterval(Double(byteCount) / bytesPerSecond)
-            end = max(end, taskReservedUntil)
-        }
-        if hostLimit > 0 {
-            let start = max(now, hostReservedUntil[host] ?? now)
-            let hostEnd = start.addingTimeInterval(Double(byteCount) / Double(hostLimit))
-            hostReservedUntil[host] = hostEnd
-            end = max(end, hostEnd)
-        }
-        return max(0, end.timeIntervalSince(now))
+        let start = max(now, taskReservedUntil)
+        let proposedEnd = start.addingTimeInterval(Double(byteCount) / bytesPerSecond)
+        taskReservedUntil = min(proposedEnd, now.addingTimeInterval(5.0))
+        return max(0, taskReservedUntil.timeIntervalSince(now))
     }
 }
 
@@ -407,7 +509,8 @@ public struct HLSPlaylist: Sendable {
 
 public enum HLSService {
     public static func parse(_ text: String, baseURL: URL) throws -> HLSPlaylist {
-        let lines = text.components(separatedBy: .newlines)
+        let cleanedText = text.hasPrefix("\u{FEFF}") ? String(text.dropFirst()) : text
+        let lines = cleanedText.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard lines.first == "#EXTM3U" else { throw DownloadEngineError.unsupportedContent("HLS 清单格式无效。") }
@@ -416,6 +519,9 @@ public enum HLSService {
         }
         if lines.contains(where: { $0.hasPrefix("#EXT-X-MAP:") || $0.hasPrefix("#EXT-X-BYTERANGE:") }) {
             throw DownloadEngineError.unsupportedContent("此 HLS 清单使用非独立 TS 文件范围，当前无法安全合并。")
+        }
+        guard lines.contains("#EXT-X-ENDLIST") else {
+            throw DownloadEngineError.unsupportedContent("直播流或未结束的 HLS 清单不受支持；仅支持含 #EXT-X-ENDLIST 的点播 TS 清单。")
         }
         for line in lines where line.hasPrefix("#EXT-X-KEY") || line.hasPrefix("#EXT-X-SESSION-KEY") {
             let method = line.split(separator: ",").first(where: { $0.uppercased().hasPrefix("METHOD=") })?.dropFirst(7).uppercased()
@@ -448,6 +554,7 @@ public enum HLSService {
                                 maximumConnections: Int = 4, speedLimitBytesPerSecond: Int64 = 0,
                                 runtimePolicy: HLSRuntimePolicy? = nil, generation: UInt64 = 0,
                                 baseDirectory: URL? = nil,
+                                resetResume: Bool = false,
                                 progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL {
         guard let url = URL(string: task.sourceURL), NetworkConfiguration.validate(url) else {
             throw DownloadEngineError.invalidURL
@@ -467,49 +574,28 @@ public enum HLSService {
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        switch settings.proxyMode {
-        case .direct:
-            configuration.connectionProxyDictionary = ["HTTPEnable": 0, "HTTPSEnable": 0, "SOCKSEnable": 0]
-        case .system:
-            configuration.connectionProxyDictionary = nil
-        case .manual:
-            let hostKey = settings.proxyScheme == .socks5 ? "SOCKSProxy" : "HTTPProxy"
-            let portKey = settings.proxyScheme == .socks5 ? "SOCKSPort" : "HTTPPort"
-            let enableKey = settings.proxyScheme == .socks5 ? "SOCKSEnable" : "HTTPEnable"
-            var proxy: [AnyHashable: Any] = [hostKey: settings.proxyHost, portKey: settings.proxyPort,
-                enableKey: 1, "HTTPSProxy": settings.proxyHost, "HTTPSPort": settings.proxyPort,
-                "HTTPSEnable": 1, "ExceptionsList": settings.proxyBypass]
-            if !settings.proxyUsername.isEmpty {
-                let userKey = settings.proxyScheme == .socks5 ? "SOCKSUser" : "HTTPProxyUsername"
-                let passwordKey = settings.proxyScheme == .socks5 ? "SOCKSPassword" : "HTTPProxyPassword"
-                proxy[userKey] = settings.proxyUsername; proxy[passwordKey] = proxyPassword
-                proxy["HTTPSProxyUsername"] = settings.proxyUsername; proxy["HTTPSProxyPassword"] = proxyPassword
-            }
-            configuration.connectionProxyDictionary = proxy
-        case .pac:
-            configuration.connectionProxyDictionary = ["ProxyAutoConfigEnable": 1, "ProxyAutoConfigURLString": settings.pacURL]
-        }
+        NetworkConfiguration.applyProxy(settings: settings, proxyPassword: proxyPassword, to: configuration)
         let delegate = HLSNetworkDelegate(allowInvalidTLS: settings.allowInvalidTLSCertificates,
                                           proxyUsername: settings.proxyUsername, proxyPassword: proxyPassword)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        let (manifestBytes, manifestResponse) = try await session.bytes(for: manifestRequest)
+        let (http, manifestStream) = try await delegate.openChunkStream(for: manifestRequest, on: session)
         try Task.checkCancellation()
-        guard let http = manifestResponse as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw DownloadEngineError.httpStatus((manifestResponse as? HTTPURLResponse)?.statusCode ?? 0)
+        guard (200..<300).contains(http.statusCode) else {
+            throw DownloadEngineError.httpStatus(http.statusCode)
         }
         let mime = http.value(forHTTPHeaderField: "Content-Type")?.split(separator: ";").first?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
         var manifestData = Data()
-        if manifestResponse.expectedContentLength > 0 {
-            let hint = min(max(0, manifestResponse.expectedContentLength), 16 * 1024 * 1024)
+        if http.expectedContentLength > 0 {
+            let hint = min(max(0, http.expectedContentLength), 16 * 1024 * 1024)
             manifestData.reserveCapacity(Int(hint))
         }
-        for try await byte in manifestBytes {
+        for try await chunk in manifestStream {
             try Task.checkCancellation()
-            guard manifestData.count < 16 * 1024 * 1024 else {
+            guard manifestData.count + chunk.count <= 16 * 1024 * 1024 else {
                 throw DownloadEngineError.unsupportedContent("HLS 清单超过 16 MiB，已停止读取。")
             }
-            manifestData.append(byte)
+            manifestData.append(chunk)
         }
         if !mime.contains("mpegurl") && manifestData.count > 2 * 1024 * 1024 {
             throw DownloadEngineError.unsupportedContent("HLS 清单类型未知且大于 2 MiB，已拒绝解析。")
@@ -526,7 +612,7 @@ public enum HLSService {
         let root = base
             .appendingPathComponent("hls-\(task.id)", isDirectory: true)
         _ = try await store.prepare(taskID: task.id, generation: generation,
-                                root: root, digest: digest, segmentURLs: segmentURLs)
+                                root: root, digest: digest, segmentURLs: segmentURLs, resetResume: resetResume)
         let rateLimiter = HLSRateLimiter(bytesPerSecond: speedLimitBytesPerSecond)
         let activePolicy = runtimePolicy ?? HLSRuntimePolicy(settings: settings,
             maximumConnections: maximumConnections, speedLimitBytesPerSecond: speedLimitBytesPerSecond,
@@ -592,7 +678,6 @@ public enum HLSService {
             let (activeSettings, activeConnections, activeSpeedLimit, taskConnectionOverride) = await activePolicy.snapshot()
             await rateLimiter.update(bytesPerSecond: activeSpeedLimit)
             let hostRule = NetworkConfiguration.matchingHostRule(for: source, settings: activeSettings)
-            let hostLimit = hostRule?.speedLimitBytesPerSecond ?? 0
             let hostConnections = taskConnectionOverride ? activeConnections : hostRule?.connectionCount ?? activeConnections
             try await connectionPool.acquire(host: segmentHost, limit: hostConnections)
             defer { Task { await connectionPool.release(host: segmentHost) } }
@@ -617,47 +702,37 @@ public enum HLSService {
                 if !outputClosed { try? output.close() }
                 if !installed { try? FileManager.default.removeItem(at: temporary) }
             }
-            let (bytes, response) = try await session.bytes(for: request)
+            let (http, chunkStream) = try await delegate.openChunkStream(for: request, on: session)
             try Task.checkCancellation()
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                throw DownloadEngineError.httpStatus((response as? HTTPURLResponse)?.statusCode ?? 0)
+            guard (200..<300).contains(http.statusCode) else {
+                throw DownloadEngineError.httpStatus(http.statusCode)
             }
             let expectedLength = http.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init)
-            var buffer = Data()
-            buffer.reserveCapacity(64 * 1024)
             var size: Int64 = 0
-            for try await byte in bytes {
+            let hostBucket = hostRule.map { "host:\($0.pattern.lowercased())" } ?? ""
+            for try await chunk in chunkStream {
                 try Task.checkCancellation()
-                buffer.append(byte)
-                if buffer.count >= 64 * 1024 {
-                    let globalDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: Int64(buffer.count),
-                        limit: activeSettings.globalSpeedLimitBytesPerSecond)
-                    let hostDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: Int64(buffer.count),
-                        limit: hostLimit, bucket: hostRule.map { "host:\($0.pattern.lowercased())" } ?? "")
-                    let taskDelay = await rateLimiter.reserve(buffer.count, host: segmentHost, hostLimit: hostLimit)
-                    let delay = max(globalDelay, max(hostDelay, taskDelay))
-                    if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
-                    try Task.checkCancellation()
-                    try output.write(contentsOf: buffer)
-                    size += Int64(buffer.count)
-                    buffer.removeAll(keepingCapacity: true)
-                    await reportProgress(index: index, bytes: size)
-                }
-            }
-            if !buffer.isEmpty {
-                let globalDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: Int64(buffer.count),
-                    limit: activeSettings.globalSpeedLimitBytesPerSecond)
-                let hostDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: Int64(buffer.count),
-                    limit: hostLimit, bucket: hostRule.map { "host:\($0.pattern.lowercased())" } ?? "")
-                let taskDelay = await rateLimiter.reserve(buffer.count, host: segmentHost, hostLimit: hostLimit)
-                let delay = max(globalDelay, max(hostDelay, taskDelay))
+                let chunkCount = Int64(chunk.count)
+                let (latestSettings, _, latestTaskLimit, _) = await activePolicy.snapshot()
+                await rateLimiter.update(bytesPerSecond: latestTaskLimit)
+                let globalLimit = latestSettings.globalSpeedLimitBytesPerSecond
+                let globalDelay: TimeInterval = globalLimit > 0
+                    ? await SharedGlobalRateLimiter.shared.reserve(bytes: chunkCount, limit: globalLimit)
+                    : 0
+                let activeHostLimit = NetworkConfiguration.matchingHostRule(for: source, settings: latestSettings)?.speedLimitBytesPerSecond ?? 0
+                let hostDelay: TimeInterval = activeHostLimit > 0 && !hostBucket.isEmpty
+                    ? await SharedGlobalRateLimiter.shared.reserve(bytes: chunkCount, limit: activeHostLimit, bucket: hostBucket)
+                    : 0
+                let taskDelay: TimeInterval = latestTaskLimit > 0
+                    ? await rateLimiter.reserve(chunk.count)
+                    : 0
+                let delay = min(2.0, max(globalDelay, max(hostDelay, taskDelay)))
                 if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
                 try Task.checkCancellation()
-                try output.write(contentsOf: buffer)
-                size += Int64(buffer.count)
+                try output.write(contentsOf: chunk)
+                size += chunkCount
                 await reportProgress(index: index, bytes: size)
             }
-            try output.synchronize()
             try output.close()
             outputClosed = true
             try Task.checkCancellation()
@@ -724,5 +799,9 @@ public enum HLSService {
         try await store.end(taskID: task.id, generation: generation)
         mergedSuccessfully = true
         return merged
+    }
+
+    public static func clearStoredState(taskID: Int64) async {
+        await HLSResumeStore.shared.clearTask(taskID: taskID)
     }
 }

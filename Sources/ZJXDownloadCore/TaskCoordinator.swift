@@ -15,6 +15,84 @@ public struct TransferMetric: Sendable {
     }
 }
 
+@MainActor
+@Observable
+public final class TransferLiveState {
+    public private(set) var receivedBytes: [Int64: Int64] = [:]
+    public private(set) var totalBytes: [Int64: Int64] = [:]
+    public private(set) var metrics: [Int64: TransferMetric] = [:]
+    public private(set) var totalActiveSpeed: Double = 0
+
+    public init() {}
+
+    public func update(taskID: Int64, received: Int64, total: Int64?, metric: TransferMetric) {
+        receivedBytes[taskID] = max(0, received)
+        if let total, total >= 0 { totalBytes[taskID] = total }
+        metrics[taskID] = metric
+        recomputeTotalSpeed()
+    }
+
+    public func clear(taskID: Int64) {
+        let hadReceived = receivedBytes.removeValue(forKey: taskID) != nil
+        let hadTotal = totalBytes.removeValue(forKey: taskID) != nil
+        let hadMetric = metrics.removeValue(forKey: taskID) != nil
+        if hadReceived || hadTotal || hadMetric {
+            recomputeTotalSpeed()
+        }
+    }
+
+    public func clearAll() {
+        guard !receivedBytes.isEmpty || !totalBytes.isEmpty || !metrics.isEmpty else { return }
+        receivedBytes.removeAll(keepingCapacity: false)
+        totalBytes.removeAll(keepingCapacity: false)
+        metrics.removeAll(keepingCapacity: false)
+        totalActiveSpeed = 0
+    }
+
+    public func prune(keeping validIDs: Set<Int64>) {
+        var changed = false
+        for key in Array(receivedBytes.keys) where !validIDs.contains(key) {
+            receivedBytes.removeValue(forKey: key); changed = true
+        }
+        for key in Array(totalBytes.keys) where !validIDs.contains(key) {
+            totalBytes.removeValue(forKey: key); changed = true
+        }
+        for key in Array(metrics.keys) where !validIDs.contains(key) {
+            metrics.removeValue(forKey: key); changed = true
+        }
+        if changed { recomputeTotalSpeed() }
+    }
+
+    public func decayStaleSpeeds(now: Date = .now, threshold: TimeInterval = 3.0) {
+        var changed = false
+        for (id, metric) in metrics where metric.bytesPerSecond > 0 && now.timeIntervalSince(metric.updatedAt) >= threshold {
+            metrics[id] = TransferMetric(bytesPerSecond: 0, averageBytesPerSecond: metric.averageBytesPerSecond, updatedAt: metric.updatedAt)
+            changed = true
+        }
+        if changed { recomputeTotalSpeed() }
+    }
+
+    public func effectiveReceivedBytes(for task: DownloadRecord) -> Int64 {
+        receivedBytes[task.id] ?? task.receivedBytes
+    }
+
+    public func effectiveTotalBytes(for task: DownloadRecord) -> Int64? {
+        totalBytes[task.id] ?? task.totalBytes
+    }
+
+    public func effectiveProgress(for task: DownloadRecord) -> Double? {
+        guard let total = effectiveTotalBytes(for: task), total > 0 else { return nil }
+        return min(1, Double(effectiveReceivedBytes(for: task)) / Double(total))
+    }
+
+    private func recomputeTotalSpeed() {
+        totalActiveSpeed = metrics.values.reduce(0) { partial, metric in
+            let speed = metric.bytesPerSecond.isFinite && metric.bytesPerSecond > 0 ? metric.bytesPerSecond : 0
+            return partial + speed
+        }
+    }
+}
+
 public struct ImportReviewItem: Sendable, Identifiable {
     public var id: Int { index }
     public let index: Int
@@ -295,11 +373,13 @@ private actor FileCommitter {
 @Observable
 public final class TaskCoordinator {
     public private(set) var data: AppData
-    public private(set) var liveMetrics: [Int64: TransferMetric] = [:]
+    public let liveState = TransferLiveState()
+    public var liveMetrics: [Int64: TransferMetric] { liveState.metrics }
     public private(set) var startupError: String?
     public private(set) var lastActionMessage: String?
     public private(set) var lastCompletedTaskID: Int64?
     public private(set) var pendingImportReview: PendingImportReview?
+    public var pendingImportCount: Int { importReviewQueue.count }
     public private(set) var taskStatusRevision: UInt64 = 0
     public var onGlobalSpeedLimitModeChanged: ((GlobalSpeedLimitMode) -> Void)?
     public var onIntegrationSettingsChanged: ((AppSettings) -> Void)?
@@ -325,10 +405,14 @@ public final class TaskCoordinator {
     @ObservationIgnored private var completionActionsTriggered = Set<Int64>()
     @ObservationIgnored private var backgroundInteractionActive = false
     @ObservationIgnored private var importReviewQueue: [(review: PendingImportReview, continuation: CheckedContinuation<Bool, Never>)] = []
-    @ObservationIgnored private var inFlightImportTasks: [String: (digest: String, task: Task<ImportRequestResult, Error>)] = [:]
+    @ObservationIgnored private var inFlightImportTasks: [String: (digest: String, waiters: Int, task: Task<ImportRequestResult, Error>)] = [:]
     @ObservationIgnored private var activeImportRequestCount = 0
-    private var sleepAssertionID: IOPMAssertionID?
-    private var lastDiskAudit = Date.distantPast
+    @ObservationIgnored private var activeSessionStartedAt: [Int64: Date] = [:]
+    @ObservationIgnored private var accumulatedActiveDuration: [Int64: TimeInterval] = [:]
+    @ObservationIgnored private var pendingHLSReset = Set<Int64>()
+    @ObservationIgnored private var schedulerWakeContinuation: CheckedContinuation<Void, Never>?
+    @ObservationIgnored private var sleepAssertionID: IOPMAssertionID?
+    @ObservationIgnored private var lastDiskAudit = Date.distantPast
 
     public init(directory: URL? = nil, credentialService: String = ProductIdentity.bundleID + ".credentials") {
         let loadedStore: StateStore
@@ -367,6 +451,7 @@ public final class TaskCoordinator {
     public var legacyStateAvailable: Bool { store.hasLegacyState && data.importedLegacyAt == nil }
     public var hasOutstandingTransfers: Bool {
         data.tasks.contains(where: \.status.isActive) || !preparationWork.isEmpty || !hlsWork.isEmpty ||
+            !fileCommitWork.isEmpty ||
             engine.activeTransferCount > 0 || segmentedEngine.activeTransferCount > 0
     }
 
@@ -483,6 +568,7 @@ public final class TaskCoordinator {
         publishStatusTransition(from: nil, to: record)
         if request.startImmediately { startTask(id, manual: true) }
         else { pumpQueues() }
+        wakeScheduler()
         return id
     }
 
@@ -576,6 +662,9 @@ public final class TaskCoordinator {
             if removePartial {
                 data.tasks[index].resumeDataName = nil
                 data.tasks[index].receivedBytes = 0
+            } else if let liveReceived = liveState.receivedBytes[id] {
+                data.tasks[index].receivedBytes = max(data.tasks[index].receivedBytes, liveReceived)
+                if let liveTotal = liveState.totalBytes[id] { data.tasks[index].totalBytes = liveTotal }
             }
         }
         do { try persist() }
@@ -593,6 +682,7 @@ public final class TaskCoordinator {
             if let work = hlsWork.removeValue(forKey: id) { work.task.cancel() }
             segmentedEngine.cancel(taskID: id, generation: generation, deletePartial: removePartial)
             engine.cancel(taskID: id, generation: generation)
+            clearLiveTransferState(for: id, resetDuration: removePartial)
             if removePartial {
                 schedulePartialCleanup(id: id, resumeDataName: previous.resumeDataName, removeHLS: true)
             }
@@ -601,6 +691,7 @@ public final class TaskCoordinator {
         affectedQueues.forEach(handleQueueDrained)
         updateSleepAssertion()
         pumpQueues()
+        wakeScheduler()
     }
 
     public func resume(_ ids: [Int64]) { start(ids) }
@@ -638,7 +729,13 @@ public final class TaskCoordinator {
             if let work = hlsWork.removeValue(forKey: id) { work.task.cancel() }
             segmentedEngine.cancel(taskID: id, generation: generation, deletePartial: true)
             engine.cancel(taskID: id, generation: generation)
-            schedulePartialCleanup(id: id, resumeDataName: previous.resumeDataName, removeHLS: true)
+            clearLiveTransferState(for: id, resetDuration: true)
+            if previous.kind == .hls {
+                pendingHLSReset.insert(id)
+                schedulePartialCleanup(id: id, resumeDataName: previous.resumeDataName, removeHLS: false)
+            } else {
+                schedulePartialCleanup(id: id, resumeDataName: previous.resumeDataName, removeHLS: true)
+            }
             if let current = task(id) { publishStatusTransition(from: previous, to: current) }
         }
         start(Array(validIDs))
@@ -670,18 +767,32 @@ public final class TaskCoordinator {
             segmentedEngine.cancel(taskID: id, generation: generation, deletePartial: true)
             engine.cancel(taskID: id, generation: generation)
             schedulePartialCleanup(id: id, resumeDataName: task.resumeDataName, removeHLS: true)
+            Task { await HLSService.clearStoredState(taskID: id) }
             if let account = task.credentialAccount { try? credentials.writeData(nil, account: account) }
             if task.status == .completed && removeCompletedFiles {
-                do { try FileManager.default.removeItem(at: task.outputURL) }
+                do {
+                    do {
+                        try FileManager.default.trashItem(at: task.outputURL, resultingItemURL: nil)
+                    } catch {
+                        try FileManager.default.removeItem(at: task.outputURL)
+                    }
+                }
                 catch { errors.append("\(task.displayName): \(error.localizedDescription)") }
             }
-            liveMetrics.removeValue(forKey: id)
-            progressSnapshots.removeValue(forKey: id)
+            clearLiveTransferState(for: id, resetDuration: true)
+            pendingHLSReset.remove(id)
         }
+        liveState.prune(keeping: Set(data.tasks.map(\.id)))
         selectedTaskIDs.subtract(validIDs)
         updateSleepAssertion()
         pumpQueues()
+        wakeScheduler()
         return errors
+    }
+
+    public func clearCompletedTasks() -> [String] {
+        let completedIDs = data.tasks.filter { $0.status == .completed }.map(\.id)
+        return remove(completedIDs, removeCompletedFiles: false)
     }
 
     public func editTask(_ id: Int64, name: String, sourceURL: URL, pageURL: URL?, headers: [String: String],
@@ -741,8 +852,8 @@ public final class TaskCoordinator {
         if let work = hlsWork.removeValue(forKey: id) { work.task.cancel() }
         segmentedEngine.cancel(taskID: id, generation: generation, deletePartial: true)
         engine.cancel(taskID: id, generation: generation)
-        liveMetrics.removeValue(forKey: id)
-        progressSnapshots.removeValue(forKey: id)
+        clearLiveTransferState(for: id, resetDuration: true)
+        pendingHLSReset.remove(id)
         schedulePartialCleanup(id: id, resumeDataName: previous.resumeDataName, removeHLS: true)
         pumpQueues()
     }
@@ -757,7 +868,7 @@ public final class TaskCoordinator {
         }
         let previous = data.tasks[index]
         data.tasks[index].speedLimitBytesPerSecond = speedLimitBytesPerSecond
-        data.tasks[index].connectionCount = connectionCount
+        data.tasks[index].connectionCount = connectionCount.flatMap { $0 > 0 ? $0 : nil }
         do { try persist() }
         catch { data.tasks[index] = previous; throw error }
         reconfigureActiveNetworkTransfers()
@@ -855,6 +966,7 @@ public final class TaskCoordinator {
         if globalModeChanged { onGlobalSpeedLimitModeChanged?(nextSettings.globalSpeedLimitMode) }
         if integrationSettingsChanged { onIntegrationSettingsChanged?(nextSettings) }
         if nextSettings.maxManualDownloads > previousSettings.maxManualDownloads { pumpQueues() }
+        if nextSettings.trackDeletedFiles != previousSettings.trackDeletedFiles { wakeScheduler() }
     }
 
     private var effectiveGlobalSpeedLimit: Int64 {
@@ -945,6 +1057,7 @@ public final class TaskCoordinator {
         data.queues[index] = updated
         do { try persist() } catch { data.queues[index] = previous; throw error }
         pumpQueues()
+        wakeScheduler()
     }
 
     public func reorderQueues(_ orderedIDs: [Int64]) throws {
@@ -1079,6 +1192,7 @@ public final class TaskCoordinator {
             return
         }
         pumpQueues()
+        wakeScheduler()
     }
 
     public func stopQueue(_ id: Int64) {
@@ -1155,7 +1269,11 @@ public final class TaskCoordinator {
         let requestItemCount = (payload["items"] as? [[String: Any]])?.count ?? 0
         if let requestID, let existing = inFlightImportTasks[requestID] {
             guard existing.digest == digest else { throw IntegrationError.requestConflict }
-            return try await awaitImportResult(existing.task)
+            var updated = existing
+            updated.waiters += 1
+            inFlightImportTasks[requestID] = updated
+            defer { releaseImportWaiter(requestID: requestID) }
+            return try await awaitImportResult(existing.task, requestID: requestID)
         }
         if data.idempotency.contains(where: { Date.now.timeIntervalSince($0.acceptedAt) >= 600 && inFlightImportTasks[$0.requestID] == nil }) {
             let previousData = data
@@ -1172,12 +1290,12 @@ public final class TaskCoordinator {
         let work = Task { @MainActor in
             try await self.performImportRequestDetailed(payload, requestID: requestID, digest: digest, deadline: deadline)
         }
-        if let requestID { inFlightImportTasks[requestID] = (digest, work) }
+        if let requestID { inFlightImportTasks[requestID] = (digest, 1, work) }
         defer {
             activeImportRequestCount -= 1
             if let requestID { inFlightImportTasks.removeValue(forKey: requestID) }
         }
-        return try await awaitImportResult(work)
+        return try await awaitImportResult(work, requestID: requestID)
     }
 
     private func checkImportDeadline(_ deadline: Date?) throws {
@@ -1189,11 +1307,23 @@ public final class TaskCoordinator {
         inFlightImportTasks[requestID]?.task.cancel()
     }
 
-    private func awaitImportResult(_ work: Task<ImportRequestResult, Error>) async throws -> ImportRequestResult {
+    private func releaseImportWaiter(requestID: String) {
+        guard var entry = inFlightImportTasks[requestID] else { return }
+        entry.waiters = max(0, entry.waiters - 1)
+        inFlightImportTasks[requestID] = entry
+    }
+
+    private func awaitImportResult(_ work: Task<ImportRequestResult, Error>, requestID: String?) async throws -> ImportRequestResult {
         try await withTaskCancellationHandler {
             try await work.value
         } onCancel: {
-            work.cancel()
+            Task { @MainActor [weak self] in
+                guard let self else { work.cancel(); return }
+                if let requestID, let entry = self.inFlightImportTasks[requestID], entry.waiters > 1 {
+                    return
+                }
+                work.cancel()
+            }
         }
     }
 
@@ -1375,7 +1505,12 @@ public final class TaskCoordinator {
         for item in waiting { item.continuation.resume(returning: false) }
     }
 
-    public func task(_ id: Int64) -> DownloadRecord? { data.tasks.first { $0.id == id } }
+    public func task(_ id: Int64) -> DownloadRecord? {
+        guard var record = data.tasks.first(where: { $0.id == id }) else { return nil }
+        if let liveReceived = liveState.receivedBytes[id] { record.receivedBytes = liveReceived }
+        if let liveTotal = liveState.totalBytes[id] { record.totalBytes = liveTotal }
+        return record
+    }
 
     public func queueList() -> [[String: Any]] { data.queues.sorted { $0.order < $1.order }.map { ["id": $0.id, "name": $0.name] } }
 
@@ -1391,6 +1526,8 @@ public final class TaskCoordinator {
         guard startupError == nil else { completion(true); return }
         schedulerTask?.cancel()
         schedulerTask = nil
+        schedulerWakeContinuation?.resume()
+        schedulerWakeContinuation = nil
         rejectPendingImportReviews()
         stopAll()
         Task { @MainActor [weak self] in
@@ -1400,6 +1537,8 @@ public final class TaskCoordinator {
                 guard Date.now < deadline else { completion(false); return }
                 try? await Task.sleep(for: .milliseconds(100))
             }
+            self.store.cancelPendingBackgroundSaves()
+            self.syncLiveBytesIntoData()
             do { try self.persist(); completion(true) }
             catch { self.lastActionMessage = "退出前保存失败：\(error.localizedDescription)"; completion(false) }
         }
@@ -1493,15 +1632,94 @@ public final class TaskCoordinator {
         guard startupError == nil else { return }
         schedulerTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
                 guard let self else { return }
-                self.queueScheduler.tick(queues: self.data.queues)
-                self.pumpQueues()
-                if self.data.settings.trackDeletedFiles && Date.now.timeIntervalSince(self.lastDiskAudit) >= 30 {
+                let delay = self.nextSchedulerInterval()
+                if let delay {
+                    await self.waitForSchedulerOrWake(seconds: delay)
+                } else {
+                    await self.waitUntilSchedulerWoken()
+                }
+                guard !Task.isCancelled else { return }
+                if self.hasActiveTransfersForMetrics {
+                    self.liveState.decayStaleSpeeds(now: .now, threshold: 3.0)
+                }
+                if self.hasScheduledQueues {
+                    self.queueScheduler.tick(queues: self.data.queues)
+                }
+                if self.hasPendingQueuedWork {
+                    self.pumpQueues()
+                }
+                if self.data.settings.trackDeletedFiles &&
+                    self.data.tasks.contains(where: { $0.status == .completed }) &&
+                    Date.now.timeIntervalSince(self.lastDiskAudit) >= 30 {
                     self.auditCompletedFiles()
                 }
             }
         }
+    }
+
+    private var hasScheduledQueues: Bool {
+        data.queues.contains { $0.schedule.startEnabled || $0.schedule.stopEnabled }
+    }
+
+    private var hasActiveTransfersForMetrics: Bool {
+        data.tasks.contains(where: \.status.isActive) || !liveState.metrics.isEmpty
+    }
+
+    private var hasPendingQueuedWork: Bool {
+        let hasManualQueued = data.tasks.contains { $0.queueID == nil && $0.status == .queued }
+        let hasRunningQueue = data.queues.contains(where: \.isRunning)
+        return hasManualQueued || hasRunningQueue
+    }
+
+    private func nextSchedulerInterval() -> TimeInterval? {
+        var interval: TimeInterval?
+        if hasActiveTransfersForMetrics {
+            interval = min(interval ?? .infinity, 2.0)
+        }
+        if hasScheduledQueues {
+            let second = Calendar.current.component(.second, from: .now)
+            let toNextMinute = max(1.0, Double(60 - second))
+            interval = min(interval ?? .infinity, min(15.0, toNextMinute))
+        }
+        if data.settings.trackDeletedFiles && data.tasks.contains(where: { $0.status == .completed }) {
+            let remaining = max(1.0, 30.0 - Date.now.timeIntervalSince(lastDiskAudit))
+            interval = min(interval ?? .infinity, remaining)
+        }
+        return interval
+    }
+
+    private func waitUntilSchedulerWoken() async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                guard !Task.isCancelled else { continuation.resume(); return }
+                schedulerWakeContinuation?.resume()
+                schedulerWakeContinuation = continuation
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.schedulerWakeContinuation?.resume()
+                self?.schedulerWakeContinuation = nil
+            }
+        }
+    }
+
+    private func waitForSchedulerOrWake(seconds: TimeInterval) async {
+        let timer = Task {
+            do {
+                try await Task.sleep(for: .seconds(max(0.25, seconds)))
+                await MainActor.run { [weak self] in
+                    self?.wakeScheduler()
+                }
+            } catch {}
+        }
+        await waitUntilSchedulerWoken()
+        timer.cancel()
+    }
+
+    private func wakeScheduler() {
+        schedulerWakeContinuation?.resume()
+        schedulerWakeContinuation = nil
     }
 
     private func auditCompletedFiles() {
@@ -1593,8 +1811,8 @@ public final class TaskCoordinator {
         let previousGeneration = transferGenerations[id]
         let generation = nextTransferGeneration(for: id)
         pauseInProgress.removeValue(forKey: id)
-        progressSnapshots.removeValue(forKey: id)
-        liveMetrics.removeValue(forKey: id)
+        clearLiveTransferState(for: id, resetDuration: false)
+        activeSessionStartedAt[id] = .now
         record.status = .preparing
         record.lastError = nil
         record.startedAt = record.startedAt ?? .now
@@ -1614,6 +1832,7 @@ public final class TaskCoordinator {
         }
         publishStatusTransition(from: previous, to: record)
         updateSleepAssertion()
+        wakeScheduler()
         if let previousGeneration {
             preparationWork.removeValue(forKey: id)?.cancel()
             if let oldHLS = hlsWork.removeValue(forKey: id), oldHLS.generation == previousGeneration { oldHLS.task.cancel() }
@@ -1779,6 +1998,7 @@ public final class TaskCoordinator {
                           speedLimitBytesPerSecond: Int64) {
         let id = record.id
         let baseDirectory = store.directory
+        let shouldResetHLS = pendingHLSReset.remove(id) != nil
         let runtimePolicy = HLSRuntimePolicy(settings: settings, maximumConnections: maximumConnections,
             speedLimitBytesPerSecond: speedLimitBytesPerSecond, taskConnectionOverride: record.connectionCount != nil)
         hlsPolicies[id] = (generation, runtimePolicy)
@@ -1793,7 +2013,7 @@ public final class TaskCoordinator {
                     proxyPassword: proxyPassword, hostCredentials: hostCredentials,
                     maximumConnections: maximumConnections,
                     speedLimitBytesPerSecond: speedLimitBytesPerSecond, runtimePolicy: runtimePolicy,
-                    generation: generation, baseDirectory: baseDirectory) { [weak self] received, total in
+                    generation: generation, baseDirectory: baseDirectory, resetResume: shouldResetHLS) { [weak self] received, total in
                     Task { @MainActor in self?.updateProgress(id, generation: generation, received: received, total: total) }
                 }
                 guard let self, !Task.isCancelled, self.isCurrentGeneration(generation, for: id) else {
@@ -1819,9 +2039,10 @@ public final class TaskCoordinator {
         if let prior = existingSnapshot {
             guard now.timeIntervalSince(prior.0) >= 0.2 || received >= (total ?? Int64.max) else { return }
         }
+        let baselineReceived = liveState.receivedBytes[id] ?? data.tasks[index].receivedBytes
         let clampedReceived = existingSnapshot == nil
             ? max(0, received)
-            : max(data.tasks[index].receivedBytes, max(0, received))
+            : max(baselineReceived, max(0, received))
         let speed: Double
         if let prior = existingSnapshot {
             let elapsed = max(0.05, now.timeIntervalSince(prior.0))
@@ -1830,16 +2051,18 @@ public final class TaskCoordinator {
             speed = 0
         }
         progressSnapshots[id] = (now, clampedReceived)
-        let task = data.tasks[index]
-        let averageElapsed = max(0.05, now.timeIntervalSince(task.startedAt ?? task.createdAt))
+        let currentSessionStart = activeSessionStartedAt[id] ?? now
+        let activeDuration = (accumulatedActiveDuration[id] ?? 0) + max(0, now.timeIntervalSince(currentSessionStart))
+        let averageElapsed = max(0.05, activeDuration)
         let averageSpeed = Double(max(0, clampedReceived)) / averageElapsed
-        liveMetrics[id] = TransferMetric(bytesPerSecond: speed, averageBytesPerSecond: averageSpeed)
-        data.tasks[index].receivedBytes = clampedReceived
-        if let total, total >= 0 { data.tasks[index].totalBytes = total }
-        if now.timeIntervalSince(lastPersistTime) >= 1 {
+        let metric = TransferMetric(bytesPerSecond: speed, averageBytesPerSecond: averageSpeed, updatedAt: now)
+        liveState.update(taskID: id, received: clampedReceived, total: total, metric: metric)
+        if now.timeIntervalSince(lastPersistTime) >= 3 {
             lastPersistTime = now
-            do { try persist() }
-            catch { lastActionMessage = "下载进度暂未保存：\(error.localizedDescription)" }
+            let snapshot = snapshotWithLiveProgress()
+            store.scheduleBackgroundSave(snapshot) { [weak self] message in
+                self?.lastActionMessage = "下载进度暂未保存：\(message)"
+            }
         }
     }
 
@@ -1973,16 +2196,19 @@ public final class TaskCoordinator {
             return
         }
         publishStatusTransition(from: previousData.tasks.first(where: { $0.id == id }), to: completed)
-        liveMetrics.removeValue(forKey: id)
-        progressSnapshots.removeValue(forKey: id)
+        clearLiveTransferState(for: id, resetDuration: true)
         lastCompletedTaskID = id
         lastActionMessage = "下载完成：\(completed.displayName)"
         updateSleepAssertion()
         schedulePartialCleanup(id: id, resumeDataName: record.resumeDataName, removeHLS: true)
         do { try await FileCommitter.shared.finish(transaction) }
         catch { lastActionMessage = "下载已完成；旧备份或暂存文件仍保留以便恢复：\(error.localizedDescription)" }
+        if record.kind == .http {
+            segmentedEngine.cleanupCompletedArtifacts(taskID: id, generation: generation)
+        }
         guard isCurrentGeneration(generation, for: id), task(id)?.status == .completed else { return }
         pumpQueues()
+        wakeScheduler()
         if let queueID { handleQueueDrained(queueID) }
         if let action = completed.completionAction, action != .none {
             if data.tasks.contains(where: { $0.id != id && $0.status.isActive }) {
@@ -2012,8 +2238,14 @@ public final class TaskCoordinator {
 
     private func transferFailed(_ id: Int64, generation: UInt64, message: String) {
         guard isCurrentGeneration(generation, for: id), let index = taskIndex(id) else { return }
-        progressSnapshots.removeValue(forKey: id)
-        liveMetrics.removeValue(forKey: id)
+        accumulateActiveDuration(for: id)
+        if let liveReceived = liveState.receivedBytes[id] {
+            data.tasks[index].receivedBytes = max(data.tasks[index].receivedBytes, liveReceived)
+        }
+        if let liveTotal = liveState.totalBytes[id] {
+            data.tasks[index].totalBytes = liveTotal
+        }
+        clearLiveTransferState(for: id, resetDuration: false)
         let message = URL(string: data.tasks[index].sourceURL).map { redactSensitiveURL(in: message, sourceURL: $0) } ?? "传输失败；任务源地址无效。"
         if message.localizedCaseInsensitiveContains("HTTP 401") || message.localizedCaseInsensitiveContains("HTTP 403") ||
             message.localizedCaseInsensitiveContains("远端文件与暂停前不同") || message.localizedCaseInsensitiveContains("不受支持") {
@@ -2040,7 +2272,8 @@ public final class TaskCoordinator {
                 try? await Task.sleep(for: .seconds(max(1, self.data.settings.retryDelaySeconds)))
                 guard self.isCurrentGeneration(generation, for: id), let index = self.taskIndex(id),
                       self.data.tasks[index].status == .failed else { return }
-                self.startTask(id, manual: true)
+                let belongsToQueue = self.data.tasks[index].queueID != nil
+                self.startTask(id, manual: !belongsToQueue)
             }
         } else {
             updateStatus(id, .failed, error: message, generation: generation)
@@ -2065,7 +2298,8 @@ public final class TaskCoordinator {
         publishStatusTransition(from: previous, to: data.tasks[index])
         invalidateTransferGeneration(for: id)
         pauseInProgress.removeValue(forKey: id)
-        startTask(id, manual: true)
+        let belongsToQueue = data.tasks[index].queueID != nil
+        startTask(id, manual: !belongsToQueue)
     }
 
     private func handleQueueDrained(_ queueID: Int64) {
@@ -2101,8 +2335,14 @@ public final class TaskCoordinator {
         guard pauseInProgress[id] == generation, let index = taskIndex(id) else { return }
         let previous = data.tasks[index]
         var next = previous
+        accumulateActiveDuration(for: id)
         if let committedBytes {
             next.receivedBytes = max(0, committedBytes)
+        } else if let liveReceived = liveState.receivedBytes[id] {
+            next.receivedBytes = max(next.receivedBytes, liveReceived)
+        }
+        if let liveTotal = liveState.totalBytes[id] {
+            next.totalBytes = liveTotal
         }
         var newResumeName: String?
         if let resumeData, !resumeData.isEmpty {
@@ -2129,10 +2369,10 @@ public final class TaskCoordinator {
         }
         if previous.status != data.tasks[index].status { publishStatusTransition(from: previous, to: data.tasks[index]) }
         pauseInProgress.removeValue(forKey: id)
-        liveMetrics.removeValue(forKey: id)
-        progressSnapshots.removeValue(forKey: id)
+        clearLiveTransferState(for: id, resetDuration: false)
         updateSleepAssertion()
         pumpQueues()
+        wakeScheduler()
         if let queueID = data.tasks[index].queueID { handleQueueDrained(queueID) }
     }
 
@@ -2151,7 +2391,10 @@ public final class TaskCoordinator {
             return
         }
         publishStatusTransition(from: previous, to: data.tasks[index])
-        if !status.isActive { liveMetrics.removeValue(forKey: id) }
+        if !status.isActive {
+            accumulateActiveDuration(for: id)
+            clearLiveTransferState(for: id, resetDuration: status == .completed || status == .cancelled)
+        }
         updateSleepAssertion()
     }
 
@@ -2288,6 +2531,45 @@ public final class TaskCoordinator {
     }
 
     private func taskIndex(_ id: Int64) -> Int? { data.tasks.firstIndex { $0.id == id } }
+
+    private func accumulateActiveDuration(for id: Int64) {
+        if let started = activeSessionStartedAt.removeValue(forKey: id) {
+            accumulatedActiveDuration[id, default: 0] += max(0, Date.now.timeIntervalSince(started))
+        }
+    }
+
+    private func clearLiveTransferState(for id: Int64, resetDuration: Bool) {
+        liveState.clear(taskID: id)
+        progressSnapshots.removeValue(forKey: id)
+        activeSessionStartedAt.removeValue(forKey: id)
+        if resetDuration { accumulatedActiveDuration.removeValue(forKey: id) }
+    }
+
+    private func syncLiveBytesIntoData() {
+        for index in data.tasks.indices {
+            let id = data.tasks[index].id
+            if let received = liveState.receivedBytes[id] {
+                data.tasks[index].receivedBytes = max(data.tasks[index].receivedBytes, received)
+            }
+            if let total = liveState.totalBytes[id] {
+                data.tasks[index].totalBytes = total
+            }
+        }
+    }
+
+    private func snapshotWithLiveProgress() -> AppData {
+        var snapshot = data
+        for index in snapshot.tasks.indices {
+            let id = snapshot.tasks[index].id
+            if let received = liveState.receivedBytes[id] {
+                snapshot.tasks[index].receivedBytes = max(snapshot.tasks[index].receivedBytes, received)
+            }
+            if let total = liveState.totalBytes[id] {
+                snapshot.tasks[index].totalBytes = total
+            }
+        }
+        return snapshot
+    }
 
     private func persist() throws {
         try store.save(data)

@@ -57,6 +57,8 @@ struct ZJXDownloadApplication: App {
                 ContentUnavailableView("没有选中的任务", systemImage: "arrow.down.circle")
             }
         }
+        .defaultSize(width: 700, height: 500)
+        .windowResizability(.contentMinSize)
         Window("新建下载", id: "new-download") {
             DownloadComposer(coordinator: coordinator)
                 .preferredColorScheme(colorScheme)
@@ -65,6 +67,8 @@ struct ZJXDownloadApplication: App {
                 .environment(\.locale, appLocale)
                 .dynamicTypeSize(dynamicTypeSize)
         }
+        .defaultSize(width: 640, height: 560)
+        .windowResizability(.contentMinSize)
         Window("批量导入", id: "batch-import") {
             BatchImportView(coordinator: coordinator)
                 .preferredColorScheme(colorScheme)
@@ -73,8 +77,10 @@ struct ZJXDownloadApplication: App {
                 .environment(\.locale, appLocale)
                 .dynamicTypeSize(dynamicTypeSize)
         }
+        .defaultSize(width: 840, height: 720)
+        .windowResizability(.contentMinSize)
         Settings {
-            SettingsWindow(coordinator: coordinator)
+            SettingsWindow(coordinator: coordinator, server: integrationServer)
                 .preferredColorScheme(colorScheme)
                 .tint(themeTint)
                 .font(appFont)
@@ -84,10 +90,16 @@ struct ZJXDownloadApplication: App {
         .defaultSize(width: 860, height: 640)
         .windowResizability(.contentMinSize)
         Window("关于 zjx-download", id: "about") {
-            AboutView().frame(width: 600, height: 330)
+            AboutView()
                 .preferredColorScheme(colorScheme)
+                .tint(themeTint)
+                .font(appFont)
+                .environment(\.locale, appLocale)
+                .dynamicTypeSize(dynamicTypeSize)
         }
         .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 600, height: 390)
+        .windowResizability(.contentMinSize)
         MenuBarExtra(ProductIdentity.name, systemImage: "arrow.down.circle", isInserted: Binding(
             get: { coordinator.data.settings.menuBarEnabled },
             set: { enabled in
@@ -273,12 +285,26 @@ private struct DownloadMenuBarContent: View {
     var body: some View {
         Button("打开主窗口") { showDownloadMainWindow(using: openWindow) }
         Button("新建下载…") { openWindow(id: "new-download"); NSApp.activate(ignoringOtherApps: true) }
-        Text("正在下载：\(coordinator.taskCount(for: .downloading))")
+        let activeCount = coordinator.taskCount(for: .downloading) + coordinator.taskCount(for: .preparing)
+        let liveSpeed = coordinator.liveState.totalActiveSpeed
+        if activeCount > 0, liveSpeed.isFinite, liveSpeed > 0 {
+            Text("正在下载：\(activeCount) · \(ByteFormatting.speed(Int64(min(liveSpeed, Double(Int64.max))), unit: coordinator.data.settings.speedUnit))")
+        } else {
+            Text("正在下载：\(activeCount)")
+        }
         Button("全部暂停") { coordinator.stopAll() }
+            .disabled(!coordinator.hasOutstandingTransfers && coordinator.taskCount(for: .queued) == 0)
         Divider()
         SettingsLink { Text("设置…") }
         Button("退出 zjx-download") { NSApp.terminate(nil) }
     }
+}
+
+@MainActor
+func copyToPasteboard(_ text: String) {
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
 }
 
 @MainActor

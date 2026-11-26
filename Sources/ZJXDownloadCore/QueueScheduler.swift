@@ -5,6 +5,7 @@ public final class QueueScheduler {
     public var onStartQueue: ((Int64) -> Void)?
     public var onStopQueue: ((Int64) -> Void)?
     private var firedEvents = Set<String>()
+    private var lastMinuteStamp = ""
 
     public init() {}
 
@@ -12,6 +13,11 @@ public final class QueueScheduler {
         let parts = calendar.dateComponents([.year, .month, .day, .weekday, .hour, .minute], from: now)
         guard let weekday = parts.weekday, let hour = parts.hour, let minute = parts.minute else { return }
         let productWeekday = weekday == 1 ? 7 : weekday - 1
+        let minuteStamp = "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)-\(hour)-\(minute)"
+        if minuteStamp != lastMinuteStamp {
+            firedEvents.removeAll(keepingCapacity: true)
+            lastMinuteStamp = minuteStamp
+        }
         for queue in queues {
             let currentMinute = hour * 60 + minute
             let startMinute = queue.schedule.startHour * 60 + queue.schedule.startMinute
@@ -29,7 +35,6 @@ public final class QueueScheduler {
                 if firedEvents.insert(key).inserted { onStopQueue?(queue.id) }
             }
         }
-        if firedEvents.count > 128 { firedEvents.removeAll(keepingCapacity: true) }
     }
 
     public func nextEvent(for queue: QueueRecord, after date: Date = .now, calendar: Calendar = .current) -> (kind: String, date: Date)? {

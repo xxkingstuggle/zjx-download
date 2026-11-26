@@ -46,10 +46,27 @@ struct CategoryViews: View {
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                 GridRow {
                     TextField("分类名称", text: $name).textFieldStyle(.roundedBorder)
-                    TextField("SF Symbol", text: $symbol).textFieldStyle(.roundedBorder).frame(width: 160)
+                    HStack(spacing: 6) {
+                        Image(systemName: symbol.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "folder" : symbol.trimmingCharacters(in: .whitespacesAndNewlines))
+                            .frame(width: 22, height: 22)
+                            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        TextField("SF Symbol", text: $symbol).textFieldStyle(.roundedBorder).frame(width: 150)
+                    }
                 }
                 TextField("扩展名，空格或逗号分隔", text: $extensionsText).textFieldStyle(.roundedBorder)
-                TextField("URL 匹配规则，每行一项", text: $patternsText).textFieldStyle(.roundedBorder)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("URL 匹配规则（每行一项，支持 * 通配符）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $patternsText)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 62, maxHeight: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.65), lineWidth: 0.75)
+                        )
+                }
                 GridRow {
                     TextField("分类保存目录（可选）", text: $folder).textFieldStyle(.roundedBorder)
                     Button("选择…") { chooseFolder() }
@@ -65,7 +82,7 @@ struct CategoryViews: View {
             }
             if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
         }
-        .padding(20).frame(width: 760, height: 650)
+        .padding(20).frame(minWidth: 720, idealWidth: 780, minHeight: 580, idealHeight: 660)
         .confirmationDialog("删除分类？", isPresented: Binding(
             get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }
         )) {

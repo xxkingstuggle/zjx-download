@@ -165,7 +165,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
     private var requestedGenerations: [Int64: UInt64] = [:]
     private var setupTasks: [Int64: (generation: UInt64, task: Task<Prepared, Error>)] = [:]
     private var mergeTasks: [Int64: (generation: UInt64, task: Task<Void, Never>)] = [:]
-    private var cleanupTasks: [Int64: Task<Void, Never>] = [:]
+    private var cleanupTasks: [Int64: (token: UUID, task: Task<Void, Never>)] = [:]
     private var progressDrainTasks: [Int64: (generation: UInt64, task: Task<Void, Never>)] = [:]
     private nonisolated let sessionPolicies = SegmentedSessionPolicyStore()
     private nonisolated let progressMailbox = SegmentedProgressMailbox()
@@ -266,7 +266,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         }
         let directory = checkpointDirectory(task.id)
         while let cleanup = cleanupTasks.removeValue(forKey: task.id) {
-            await cleanup.value
+            await cleanup.task.value
             guard requestedGenerations[task.id] == generation else { throw CancellationError() }
         }
         if let pending = setupTasks[task.id], pending.generation != generation {
@@ -305,7 +305,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         if let active = transfers[task.id], active.generation != generation {
             cancel(taskID: task.id, generation: active.generation, deletePartial: false)
             while let cleanup = cleanupTasks.removeValue(forKey: task.id) {
-                await cleanup.value
+                await cleanup.task.value
                 guard requestedGenerations[task.id] == generation else { throw CancellationError() }
             }
         }
@@ -411,6 +411,15 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         }
     }
 
+    /// Removes segmented checkpoint artifacts only after the caller has durably
+    /// committed the final target file to its destination.
+    public func cleanupCompletedArtifacts(taskID: Int64, generation: UInt64) {
+        let directory = checkpointDirectory(taskID)
+        registerCleanup(taskID: taskID) {
+            Self.removeDirectory(directory, generation: generation)
+        }
+    }
+
     private func schedule(_ taskID: Int64) {
         guard let transfer = transfers[taskID], !transfer.pausing, !transfer.cancelling,
               !transfer.failing, !transfer.merging else { return }
@@ -472,7 +481,12 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         transfer.manifest.ranges = ranges
         do {
             let data = try JSONEncoder().encode(transfer.manifest)
-            try data.write(to: transfer.directory.appendingPathComponent("manifest.json"), options: .atomic)
+            let directory = transfer.directory
+            try SegmentedDirectoryLocks.shared.withLock(directory: directory) {
+                let manifestURL = directory.appendingPathComponent("manifest.json")
+                try data.write(to: manifestURL, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: manifestURL.path)
+            }
         } catch {
             fail(taskID, "无法保存动态 Range 分片计划：\(error.localizedDescription)")
         }
@@ -593,17 +607,20 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         let status = http.statusCode
         let contentRange = http.value(forHTTPHeaderField: "Content-Range") ?? ""
         let responseETag = http.value(forHTTPHeaderField: "ETag")
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             defer { try? FileManager.default.removeItem(at: transient) }
-            guard let transfer = self.transfers[id], transfer.generation == generation,
+            guard let self, let transfer = self.transfers[id], transfer.generation == generation,
                   transfer.running[index] === downloadTask,
                   let range = transfer.manifest.ranges.first(where: { $0.index == index }) else { return }
             if status == 200 {
                 self.fallbackToSingle(id)
                 return
             }
-            let expected = "bytes \(range.lower)-\(range.upper)/\(transfer.manifest.total)"
-            guard status == 206, contentRange.trimmingCharacters(in: .whitespacesAndNewlines) == expected else {
+            guard status == 206,
+                  let parsedRange = Self.parseContentRange(contentRange),
+                  parsedRange.lower == range.lower,
+                  parsedRange.upper == range.upper,
+                  parsedRange.total == transfer.manifest.total else {
                 self.fail(id, "服务器没有返回与请求一致的 Content-Range（HTTP \(status)）。")
                 return
             }
@@ -628,7 +645,18 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
                 return
             }
             do {
-                try FileManager.default.moveItem(at: transient, to: Self.segmentURL(transfer.directory, index))
+                let destination = Self.segmentURL(transfer.directory, index)
+                try SegmentedDirectoryLocks.shared.withLock(directory: transfer.directory) {
+                    let renameResult = transient.path.withCString { sourcePath in
+                        destination.path.withCString { destinationPath in Darwin.rename(sourcePath, destinationPath) }
+                    }
+                    if renameResult != 0 {
+                        if FileManager.default.fileExists(atPath: destination.path) {
+                            try FileManager.default.removeItem(at: destination)
+                        }
+                        try FileManager.default.moveItem(at: transient, to: destination)
+                    }
+                }
                 transfer.running.removeValue(forKey: index)
                 transfer.received.removeValue(forKey: index)
                 transfer.completed.insert(index)
@@ -641,8 +669,8 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
     nonisolated public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error, let (id, generation, index) = Self.parse(task.taskDescription) else { return }
         let cancelled = (error as NSError).code == NSURLErrorCancelled
-        Task { @MainActor in
-            guard let transfer = self.transfers[id], transfer.generation == generation,
+        Task { @MainActor [weak self] in
+            guard let self, let transfer = self.transfers[id], transfer.generation == generation,
                   transfer.running[index] === task else { return }
             transfer.running.removeValue(forKey: index)
             transfer.received.removeValue(forKey: index)
@@ -792,11 +820,17 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
 
     private func registerCleanup(taskID: Int64, operation: @escaping @Sendable () async -> Void) {
         let previous = cleanupTasks[taskID]
-        let task = Task.detached(priority: .utility) {
-            if let previous { await previous.value }
+        let token = UUID()
+        let task = Task.detached(priority: .utility) { [weak self] in
+            if let previous { await previous.task.value }
             await operation()
+            await MainActor.run {
+                if self?.cleanupTasks[taskID]?.token == token {
+                    self?.cleanupTasks.removeValue(forKey: taskID)
+                }
+            }
         }
-        cleanupTasks[taskID] = task
+        cleanupTasks[taskID] = (token, task)
     }
 
     private func mergeCompleted(taskID: Int64, generation: UInt64, outputURL: URL) {
@@ -811,6 +845,9 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         }
         rateSamples.removeValue(forKey: taskID)
         progressMailbox.end(taskID: taskID, generation: generation)
+        if progressDrainTasks[taskID]?.generation == generation {
+            progressDrainTasks.removeValue(forKey: taskID)?.task.cancel()
+        }
         onFinished?(taskID, generation, outputURL)
     }
 
@@ -858,20 +895,38 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
             taskDelay = max(0.05, Double(accumulated) / Double(transfer.speedLimit) - elapsed)
         } else if elapsed >= 1 { rateSamples[taskID] = (now, 0) }
         else { rateSamples[taskID] = (previous.0, accumulated) }
-        let globalDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten,
-            limit: transfer.settings.globalSpeedLimitBytesPerSecond)
+        let globalDelay: TimeInterval = if transfer.settings.globalSpeedLimitBytesPerSecond > 0 {
+            await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten,
+                limit: transfer.settings.globalSpeedLimitBytesPerSecond)
+        } else { 0 }
         let hostRule = URL(string: transfer.record.sourceURL).flatMap {
             NetworkConfiguration.matchingHostRule(for: $0, settings: transfer.settings)
         }
-        let hostDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten,
-            limit: hostRule?.speedLimitBytesPerSecond ?? 0,
-            bucket: hostRule.map { "host:\($0.pattern.lowercased())" } ?? "")
-        let delay = max(taskDelay, max(globalDelay, hostDelay))
+        let hostLimit = hostRule?.speedLimitBytesPerSecond ?? 0
+        let hostDelay: TimeInterval = if hostLimit > 0, let hostRule {
+            await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten,
+                limit: hostLimit, bucket: "host:\(hostRule.pattern.lowercased())")
+        } else { 0 }
+        let delay = min(2.0, max(taskDelay, max(globalDelay, hostDelay)))
         guard delay > 0 else { return }
         let suspendedTasks = Array(transfer.running.values)
         suspendedTasks.forEach { $0.suspend() }
-        try? await Task.sleep(for: .seconds(delay))
-        guard !Task.isCancelled, let current = transfers[taskID], current.generation == generation,
+        var remaining = delay
+        while remaining > 0 {
+            let slice = min(0.25, remaining)
+            do { try await Task.sleep(for: .seconds(slice)) }
+            catch { return }
+            guard !Task.isCancelled, let current = transfers[taskID], current.generation == generation,
+                  !current.pausing, !current.cancelling, !current.failing else { return }
+            let activeHostLimit = URL(string: current.record.sourceURL).flatMap {
+                NetworkConfiguration.matchingHostRule(for: $0, settings: current.settings)?.speedLimitBytesPerSecond
+            } ?? 0
+            if current.speedLimit <= 0 && current.settings.globalSpeedLimitBytesPerSecond <= 0 && activeHostLimit <= 0 {
+                break
+            }
+            remaining -= slice
+        }
+        guard let current = transfers[taskID], current.generation == generation,
               !current.pausing, !current.cancelling, !current.failing else { return }
         rateSamples[taskID] = (.now, 0)
         for task in suspendedTasks where current.running.values.contains(where: { $0 === task }) { task.resume() }
@@ -899,6 +954,20 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         guard parts.count == 3, let id = Int64(parts[0]), let generation = UInt64(parts[1]),
               let index = Int(parts[2]) else { return nil }
         return (id, generation, index)
+    }
+
+    nonisolated private static func parseContentRange(_ value: String) -> (lower: Int64, upper: Int64, total: Int64)? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let separator = trimmed.firstIndex(where: { $0.isWhitespace }),
+              trimmed[..<separator].lowercased() == "bytes" else { return nil }
+        let interval = String(trimmed[trimmed.index(after: separator)...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let components = interval.split(separator: "/", omittingEmptySubsequences: false)
+        guard components.count == 2, let total = Int64(String(components[1])), total > 0 else { return nil }
+        let bounds = components[0].split(separator: "-", omittingEmptySubsequences: false)
+        guard bounds.count == 2, let lower = Int64(String(bounds[0])), let upper = Int64(String(bounds[1])),
+              lower >= 0, upper >= lower, upper < total else { return nil }
+        return (lower, upper, total)
     }
 
     nonisolated private func checkpointDirectory(_ id: Int64) -> URL {
@@ -1017,26 +1086,7 @@ public final class SegmentedDownloadService: NSObject, URLSessionDownloadDelegat
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        switch settings.proxyMode {
-        case .direct: config.connectionProxyDictionary = ["HTTPEnable": 0, "HTTPSEnable": 0, "SOCKSEnable": 0]
-        case .system: config.connectionProxyDictionary = nil
-        case .manual:
-            let hostKey = settings.proxyScheme == .socks5 ? "SOCKSProxy" : "HTTPProxy"
-            let portKey = settings.proxyScheme == .socks5 ? "SOCKSPort" : "HTTPPort"
-            let enableKey = settings.proxyScheme == .socks5 ? "SOCKSEnable" : "HTTPEnable"
-            var proxy: [AnyHashable: Any] = [hostKey: settings.proxyHost, portKey: settings.proxyPort,
-                enableKey: 1, "HTTPSProxy": settings.proxyHost, "HTTPSPort": settings.proxyPort,
-                "HTTPSEnable": 1, "ExceptionsList": settings.proxyBypass]
-            if !settings.proxyUsername.isEmpty {
-                let userKey = settings.proxyScheme == .socks5 ? "SOCKSUser" : "HTTPProxyUsername"
-                let passwordKey = settings.proxyScheme == .socks5 ? "SOCKSPassword" : "HTTPProxyPassword"
-                proxy[userKey] = settings.proxyUsername; proxy[passwordKey] = proxyPassword
-                proxy["HTTPSProxyUsername"] = settings.proxyUsername; proxy["HTTPSProxyPassword"] = proxyPassword
-            }
-            config.connectionProxyDictionary = proxy
-        case .pac:
-            config.connectionProxyDictionary = ["ProxyAutoConfigEnable": 1, "ProxyAutoConfigURLString": settings.pacURL]
-        }
+        NetworkConfiguration.applyProxy(settings: settings, proxyPassword: proxyPassword, to: config)
         return config
     }
 }

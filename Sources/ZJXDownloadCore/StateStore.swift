@@ -63,6 +63,8 @@ public final class StateStore {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     public let isReadOnlyRecovery: Bool
+    private nonisolated let writeCoordinator = StateWriteCoordinator()
+    private var backgroundSaveTask: Task<Void, Never>?
 
     public init(directory: URL? = nil) throws {
         let support = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -123,30 +125,46 @@ public final class StateStore {
         var value = data
         value.schemaVersion = 2
         let bytes = try encoder.encode(value)
-        let temporaryURL = directory.appendingPathComponent(".state-v2-\(UUID().uuidString).tmp")
-        do {
-            try bytes.write(to: temporaryURL, options: [.atomic, .completeFileProtectionUnlessOpen])
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporaryURL.path)
+        let sequence = writeCoordinator.nextSequence()
+        try writeCoordinator.writeSynchronously(bytes: bytes, sequence: sequence, directory: directory, stateURL: stateURL)
+    }
 
-            var existing = stat()
-            if lstat(stateURL.path, &existing) == 0 {
-                guard (existing.st_mode & S_IFMT) == S_IFREG else { throw StateStoreError.unsafeStateFile(stateURL) }
-            } else if errno != ENOENT {
-                throw CocoaError(.fileWriteNoPermission)
+    public func scheduleBackgroundSave(_ data: AppData, onFailure: (@MainActor @Sendable (String) -> Void)? = nil) {
+        guard !isReadOnlyRecovery else { return }
+        var snapshot = data
+        snapshot.schemaVersion = 2
+        let sequence = writeCoordinator.nextSequence()
+        let directory = self.directory
+        let stateURL = self.stateURL
+        let coordinator = self.writeCoordinator
+        backgroundSaveTask?.cancel()
+        backgroundSaveTask = Task.detached(priority: .utility) {
+            do {
+                try Task.checkCancellation()
+                let backgroundEncoder = JSONEncoder()
+                backgroundEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                backgroundEncoder.dateEncodingStrategy = .iso8601
+                let bytes = try backgroundEncoder.encode(snapshot)
+                try Task.checkCancellation()
+                try coordinator.writeIfCurrent(bytes: bytes, sequence: sequence, directory: directory, stateURL: stateURL)
+            } catch is CancellationError {
+                return
+            } catch {
+                if let onFailure {
+                    await onFailure(error.localizedDescription)
+                }
             }
-
-            let result = temporaryURL.path.withCString { source in
-                stateURL.path.withCString { destination in Darwin.rename(source, destination) }
-            }
-            guard result == 0 else { throw CocoaError(.fileWriteUnknown) }
-        } catch {
-            try? FileManager.default.removeItem(at: temporaryURL)
-            throw error
         }
+    }
+
+    public func cancelPendingBackgroundSaves() {
+        backgroundSaveTask?.cancel()
+        backgroundSaveTask = nil
     }
 
     public func resumeDataURL(for name: String) -> URL { resumeDirectory.appendingPathComponent(name).standardizedFileURL }
     public func saveResumeData(_ bytes: Data, taskID: Int64) throws -> String {
+        guard !isReadOnlyRecovery else { throw StateStoreError.readOnlyRecovery }
         let name = "task-\(taskID)-\(UUID().uuidString).resume"
         try bytes.write(to: resumeDataURL(for: name), options: [.atomic, .completeFileProtectionUnlessOpen])
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: resumeDataURL(for: name).path)
@@ -157,6 +175,7 @@ public final class StateStore {
         return try? Data(contentsOf: resumeDataURL(for: name))
     }
     public func removeResumeData(named name: String?) {
+        guard !isReadOnlyRecovery else { return }
         guard let name, !name.contains("/"), !name.contains("..") else { return }
         try? FileManager.default.removeItem(at: resumeDataURL(for: name))
     }
@@ -482,4 +501,52 @@ private struct LegacyStateImporter {
 
 private extension String {
     var isHTTPFamily: Bool { self == "http" || self == "https" }
+}
+
+private final class StateWriteCoordinator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var latestSequence: UInt64 = 0
+
+    func nextSequence() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        latestSequence &+= 1
+        return latestSequence
+    }
+
+    func writeSynchronously(bytes: Data, sequence: UInt64, directory: URL, stateURL: URL) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard sequence == latestSequence else { return }
+        try Self.writeAtomically(bytes: bytes, directory: directory, stateURL: stateURL)
+    }
+
+    func writeIfCurrent(bytes: Data, sequence: UInt64, directory: URL, stateURL: URL) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard sequence == latestSequence else { return }
+        try Self.writeAtomically(bytes: bytes, directory: directory, stateURL: stateURL)
+    }
+
+    private static func writeAtomically(bytes: Data, directory: URL, stateURL: URL) throws {
+        let temporaryURL = directory.appendingPathComponent(".state-v2-\(UUID().uuidString).tmp")
+        do {
+            try bytes.write(to: temporaryURL, options: [.completeFileProtectionUnlessOpen])
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporaryURL.path)
+            var existing = stat()
+            if lstat(stateURL.path, &existing) == 0 {
+                guard (existing.st_mode & S_IFMT) == S_IFREG else { throw StateStoreError.unsafeStateFile(stateURL) }
+            } else if errno != ENOENT {
+                throw CocoaError(.fileWriteNoPermission)
+            }
+
+            let result = temporaryURL.path.withCString { source in
+                stateURL.path.withCString { destination in Darwin.rename(source, destination) }
+            }
+            guard result == 0 else { throw CocoaError(.fileWriteUnknown) }
+        } catch {
+            try? FileManager.default.removeItem(at: temporaryURL)
+            throw error
+        }
+    }
 }

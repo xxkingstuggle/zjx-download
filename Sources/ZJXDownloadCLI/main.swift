@@ -1,8 +1,11 @@
 import CoreFoundation
 import Foundation
+import ZJXDownloadCore
 
 @main
 struct DownloadCLI {
+    private static let loopbackSession = URLSession(configuration: NetworkConfiguration.loopbackSessionConfiguration())
+
     private enum ProbeResult {
         case ready
         case unavailable
@@ -57,6 +60,9 @@ struct DownloadCLI {
                 _ = try await request("POST", "/quit", body: Data(), root: root)
                 print("quit requested")
             case "integration":
+                guard pieces.count == 2 || (pieces.count == 3 && pieces[2] == "show") else {
+                    usage(); exit(2)
+                }
                 switch await probe(root: root) {
                 case .ready: print(root)
                 case .unavailable: print("UNKNOWN")
@@ -69,7 +75,10 @@ struct DownloadCLI {
         }
         if pieces.starts(with: ["native-messaging", "install"]) || pieces.starts(with: ["native-messaging", "uninstall"]) {
             let action = pieces[1]
-            let script = URL(fileURLWithPath: "/Applications/zjx-download.app/Contents/Helpers/manage-native-host")
+            let script = resolveAppBundleURL().appendingPathComponent("Contents/Helpers/manage-native-host")
+            guard FileManager.default.isExecutableFile(atPath: script.path) else {
+                throw CLIError.server("找不到 Native Messaging 管理脚本：\(script.path)")
+            }
             let process = Process(); process.executableURL = script; process.arguments = [action]
             try process.run(); process.waitUntilExit()
             if process.terminationStatus != 0 { exit(Int32(process.terminationStatus)) }
@@ -78,7 +87,13 @@ struct DownloadCLI {
         guard pieces.count >= 2, pieces[0] == "download" else { usage(); exit(2) }
         switch pieces[1] {
         case "show":
-            try await show(ids: pieces.dropFirst(2).compactMap(Int64.init), watch: pieces.contains("--watch"), root: root)
+            var watch = false
+            var ids: [Int64] = []
+            for token in pieces.dropFirst(2) {
+                if token == "--watch" { watch = true; continue }
+                ids.append(try parsePositiveID(token, label: "任务 ID"))
+            }
+            try await show(ids: ids, watch: watch, root: root)
         case "add":
             guard pieces.count >= 4 else { usage(); exit(2) }
             let kind = pieces[2]
@@ -92,8 +107,15 @@ struct DownloadCLI {
             if let value = options["download-page"] { source["downloadPage"] = value }
             if let value = options["name"] { source["suggestedName"] = value }
             if let value = options["folder"] { source["folder"] = value }
-            if let value = options["queue"], let id = Int64(value) { source["queueId"] = id }
-            if let value = options["category"], let id = Int64(value) { source["categoryId"] = id }
+            var queueID: Int64?
+            if let value = options["queue"] {
+                let parsed = try parsePositiveID(value, label: "--queue")
+                source["queueId"] = parsed
+                queueID = parsed
+            }
+            if let value = options["category"] {
+                source["categoryId"] = try parsePositiveID(value, label: "--category")
+            }
             if options["start"] == "true" { source["startDownload"] = true }
             if !options["headers", default: ""].isEmpty { source["headers"] = parseHeaders(options["headers"]!) }
             let requestID = UUID().uuidString
@@ -102,16 +124,26 @@ struct DownloadCLI {
             let result = try await request("POST", "/add", body: body, root: root, timeout: 130)
             let taskID = try decodeReceipt(result, requestID: requestID)
             print(taskID)
-            if options["start-queue"] == "true", let value = options["queue"], let id = Int64(value) {
-                _ = try await request("POST", "/queues/\(id)/start", body: Data(), root: root)
+            if options["start-queue"] == "true" {
+                guard let queueID else { throw CLIError.arguments("使用 --start-queue 时必须同时指定 --queue ID。") }
+                _ = try await request("POST", "/queues/\(queueID)/start", body: Data(), root: root)
             }
         case "pause", "resume", "remove":
-            let ids = pieces.dropFirst(2).compactMap(Int64.init)
+            var removeFile = false
+            var ids: [Int64] = []
+            for token in pieces.dropFirst(2) {
+                if token == "--remove-file" {
+                    guard pieces[1] == "remove" else { throw CLIError.arguments("--remove-file 仅支持 download remove。") }
+                    removeFile = true
+                    continue
+                }
+                ids.append(try parsePositiveID(token, label: "任务 ID"))
+            }
             guard !ids.isEmpty else { throw CLIError.arguments("至少提供一个任务 ID。") }
             var failures = false
             for id in ids {
                 let method = pieces[1] == "remove" ? "DELETE" : "POST"
-                let suffix = pieces[1] == "remove" ? "remove" : pieces[1]
+                let suffix = pieces[1] == "remove" ? (removeFile ? "remove?removeFiles=true" : "remove") : pieces[1]
                 do { _ = try await request(method, "/tasks/\(id)/\(suffix)", body: Data(), root: root) }
                 catch {
                     failures = true
@@ -165,13 +197,21 @@ struct DownloadCLI {
 
     private static func show(ids: [Int64], watch: Bool, root: String) async throws {
         repeat {
-            let bytes = try await request("GET", "/tasks", body: Data(), root: root)
+            let bytes = try await request("GET", "/tasks", body: nil, root: root)
             let all = try JSONSerialization.jsonObject(with: bytes) as? [[String: Any]] ?? []
             let rows = ids.isEmpty ? all : all.filter { ids.contains(($0["id"] as? NSNumber)?.int64Value ?? -1) }
             if rows.isEmpty { print("No downloads found.") }
             for row in rows {
                 let id = row["id"] ?? "?", status = row["status"] ?? "?", name = row["name"] ?? "?", folder = row["folder"] ?? "?"
-                print("\(id)\t\(status)\t\(name)\t\(folder)")
+                let progressText: String
+                if let progress = (row["progress"] as? NSNumber)?.doubleValue {
+                    progressText = String(format: "%.0f%%", progress * 100)
+                } else {
+                    progressText = "-"
+                }
+                let speedBytes = (row["speedBytesPerSecond"] as? NSNumber)?.int64Value ?? 0
+                let speedText = speedBytes > 0 ? ByteFormatting.speed(speedBytes, unit: "binary") : "-"
+                print("\(id)\t\(status)\t\(progressText)\t\(speedText)\t\(name)\t\(folder)")
             }
             if watch { try await Task.sleep(for: .seconds(1)); print("---") }
         } while watch
@@ -188,7 +228,7 @@ struct DownloadCLI {
             request.setValue(key, forHTTPHeaderField: "X-API-Key")
         }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await loopbackSession.data(for: request)
             guard let http = response as? HTTPURLResponse else { return .error("集成 API 未返回 HTTP 响应。") }
             if http.statusCode == 200, String(data: data, encoding: .utf8) == "pong" { return .ready }
             if http.statusCode == 401 { return .error("集成 API 可达，但 API Key 缺失或无效；未重新启动应用。") }
@@ -196,18 +236,20 @@ struct DownloadCLI {
         } catch { return .unavailable }
     }
 
-    private static func request(_ method: String, _ path: String, body: Data, root: String,
+    private static func request(_ method: String, _ path: String, body: Data?, root: String,
                                 timeout: TimeInterval = 4) async throws -> Data {
         guard let url = endpoint(root: root, path: path) else { throw CLIError.server("API 地址无效。") }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.httpBody = body
         request.timeoutInterval = timeout
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if method != "GET", let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         if let key = ProcessInfo.processInfo.environment["ZJX_DOWNLOAD_API_KEY"] {
             request.setValue(key, forHTTPHeaderField: "X-API-Key")
         }
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await loopbackSession.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw CLIError.server("本机 API 返回 HTTP \(status)：\(responseMessage(data))")
@@ -230,10 +272,30 @@ struct DownloadCLI {
     }
 
     private static func openApp(background: Bool) throws {
+        let appURL = resolveAppBundleURL()
+        guard FileManager.default.fileExists(atPath: appURL.path) else {
+            throw CLIError.server("找不到 \(appURL.path)。")
+        }
         let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", "/Applications/zjx-download.app"] + (background ? ["--args", "--background"] : [])
+        process.arguments = (background ? ["-g"] : []) + ["-a", appURL.path] + (background ? ["--args", "--background"] : [])
         try process.run(); process.waitUntilExit()
-        if process.terminationStatus != 0 { throw CLIError.server("无法打开 /Applications/zjx-download.app。") }
+        if process.terminationStatus != 0 { throw CLIError.server("无法打开 \(appURL.path)。") }
+    }
+
+    private static func resolveAppBundleURL() -> URL {
+        var cursor = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        while cursor.path != "/" {
+            if cursor.pathExtension == "app" { return cursor }
+            cursor.deleteLastPathComponent()
+        }
+        return URL(fileURLWithPath: "/Applications/zjx-download.app")
+    }
+
+    private static func parsePositiveID(_ raw: String, label: String) throws -> Int64 {
+        guard let value = Int64(raw), value > 0 else {
+            throw CLIError.arguments("\(label) 必须是正整数：\(raw)")
+        }
+        return value
     }
 
     private static func parseOptions(_ args: [String]) throws -> [String: String] {
@@ -264,7 +326,7 @@ struct DownloadCLI {
     }
 
     private static func usage() {
-        print("zjx-download-cli download add <http|hls> --link URL [--header 'Name: value'] [--folder PATH] [--name NAME] [--download-page URL] [--queue ID] [--category ID] [--start] [--start-queue]\nzjx-download-cli download show [ID...] [--watch]\nzjx-download-cli download pause|resume|remove ID...\nzjx-download-cli gui run|start-if-not-started|exit|integration show\nzjx-download-cli native-messaging install|uninstall")
+        print("zjx-download-cli download add <http|hls> --link URL [--header 'Name: value'] [--folder PATH] [--name NAME] [--download-page URL] [--queue ID] [--category ID] [--start] [--start-queue]\nzjx-download-cli download show [ID...] [--watch]\nzjx-download-cli download pause|resume ID...\nzjx-download-cli download remove ID... [--remove-file]\nzjx-download-cli gui run [--background]|start-if-not-started|exit|integration [show]\nzjx-download-cli native-messaging install|uninstall")
     }
 }
 

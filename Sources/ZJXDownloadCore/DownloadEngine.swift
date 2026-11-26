@@ -189,12 +189,39 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
         defer { sessionPolicies.remove(ObjectIdentifier(session)); session.invalidateAndCancel() }
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw DownloadEngineError.unsupportedContent("服务器没有返回有效的 HTTP 响应。") }
-        guard (200..<400).contains(http.statusCode) || http.statusCode == 405 || http.statusCode == 501 else {
+        guard (200..<400).contains(http.statusCode) || [403, 405, 501].contains(http.statusCode) else {
             throw DownloadEngineError.httpStatus(http.statusCode)
         }
-        if http.statusCode == 405 || http.statusCode == 501 {
-            // A HEAD error page is not evidence about the GET resource. Keep its
-            // metadata unknown and force the eventual task through the original URL.
+        if [403, 405, 501].contains(http.statusCode) {
+            var fallbackRequest = URLRequest(url: url, timeoutInterval: 30)
+            fallbackRequest.httpMethod = "GET"
+            fallbackRequest.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+            if !userAgent.isEmpty { fallbackRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+            for (name, value) in headers where name.caseInsensitiveCompare("Host") != .orderedSame
+                && name.caseInsensitiveCompare("Range") != .orderedSame {
+                fallbackRequest.setValue(value, forHTTPHeaderField: name)
+            }
+            fallbackRequest.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+            do {
+                let (bytes, fallbackResponse) = try await session.bytes(for: fallbackRequest)
+                defer { bytes.task.cancel() }
+                if let fallbackHTTP = fallbackResponse as? HTTPURLResponse, (200..<300).contains(fallbackHTTP.statusCode) {
+                    let isPartial = fallbackHTTP.statusCode == 206
+                    let length = isPartial
+                        ? Self.parseContentRange(fallbackHTTP.value(forHTTPHeaderField: "Content-Range"))?.totalLength
+                        : fallbackHTTP.value(forHTTPHeaderField: "Content-Length").flatMap(Int64.init).flatMap { $0 >= 0 ? $0 : nil }
+                    let ranges = isPartial || fallbackHTTP.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased().contains("bytes") == true
+                    let disposition = fallbackHTTP.value(forHTTPHeaderField: "Content-Disposition")
+                    let name = Self.fileName(from: disposition) ?? Self.fileName(from: fallbackHTTP.url?.absoluteString) ?? Self.fileName(from: url.absoluteString)
+                    return RemoteResourceInfo(contentLength: length, supportsRanges: ranges,
+                                              etag: fallbackHTTP.value(forHTTPHeaderField: "ETag"),
+                                              lastModified: fallbackHTTP.value(forHTTPHeaderField: "Last-Modified"),
+                                              contentType: fallbackHTTP.value(forHTTPHeaderField: "Content-Type"),
+                                              suggestedName: name, finalURL: fallbackHTTP.url ?? url)
+                }
+            } catch {
+                if error is CancellationError { throw error }
+            }
             return RemoteResourceInfo(contentLength: nil, supportsRanges: false, etag: nil,
                                       lastModified: nil, contentType: nil,
                                       suggestedName: Self.fileName(from: url.absoluteString), finalURL: url)
@@ -321,29 +348,7 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        switch settings.proxyMode {
-        case .direct:
-            config.connectionProxyDictionary = ["HTTPEnable": 0, "HTTPSEnable": 0, "SOCKSEnable": 0]
-        case .system:
-            config.connectionProxyDictionary = nil
-        case .manual:
-            let hostKey = settings.proxyScheme == .socks5 ? "SOCKSProxy" : "HTTPProxy"
-            let portKey = settings.proxyScheme == .socks5 ? "SOCKSPort" : "HTTPPort"
-            let enableKey = settings.proxyScheme == .socks5 ? "SOCKSEnable" : "HTTPEnable"
-            var proxy: [AnyHashable: Any] = [hostKey: settings.proxyHost, portKey: settings.proxyPort,
-                                              enableKey: 1, "HTTPSProxy": settings.proxyHost,
-                                              "HTTPSPort": settings.proxyPort, "HTTPSEnable": 1,
-                                              "ExceptionsList": settings.proxyBypass]
-            if !settings.proxyUsername.isEmpty {
-                let userKey = settings.proxyScheme == .socks5 ? "SOCKSUser" : "HTTPProxyUsername"
-                let passwordKey = settings.proxyScheme == .socks5 ? "SOCKSPassword" : "HTTPProxyPassword"
-                proxy[userKey] = settings.proxyUsername; proxy[passwordKey] = proxyPassword
-                proxy["HTTPSProxyUsername"] = settings.proxyUsername; proxy["HTTPSProxyPassword"] = proxyPassword
-            }
-            config.connectionProxyDictionary = proxy
-        case .pac:
-            config.connectionProxyDictionary = ["ProxyAutoConfigEnable": 1, "ProxyAutoConfigURLString": settings.pacURL]
-        }
+        NetworkConfiguration.applyProxy(settings: settings, proxyPassword: proxyPassword, to: config)
         return config
     }
 
@@ -426,19 +431,25 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
                     }
                 }
                 if let etag = expected.strongETag, response.value(forHTTPHeaderField: "ETag") != etag {
-                    try? FileManager.default.removeItem(at: staged)
-                    self.active.removeValue(forKey: taskID)
-                    self.finishSession(taskID: taskID, generation: generation)
-                    self.onFailed?(taskID, generation, DownloadEngineError.sourceChanged.localizedDescription)
-                    return
+                    let responseETag = response.value(forHTTPHeaderField: "ETag")
+                    if expected.isResuming || (responseETag != nil && responseETag != etag) {
+                        try? FileManager.default.removeItem(at: staged)
+                        self.active.removeValue(forKey: taskID)
+                        self.finishSession(taskID: taskID, generation: generation)
+                        self.onFailed?(taskID, generation, DownloadEngineError.sourceChanged.localizedDescription)
+                        return
+                    }
                 }
                 if expected.strongETag == nil, let modified = expected.lastModified,
                    response.value(forHTTPHeaderField: "Last-Modified") != modified {
-                    try? FileManager.default.removeItem(at: staged)
-                    self.active.removeValue(forKey: taskID)
-                    self.finishSession(taskID: taskID, generation: generation)
-                    self.onFailed?(taskID, generation, DownloadEngineError.sourceChanged.localizedDescription)
-                    return
+                    let responseModified = response.value(forHTTPHeaderField: "Last-Modified")
+                    if expected.isResuming || (responseModified != nil && responseModified != modified) {
+                        try? FileManager.default.removeItem(at: staged)
+                        self.active.removeValue(forKey: taskID)
+                        self.finishSession(taskID: taskID, generation: generation)
+                        self.onFailed?(taskID, generation, DownloadEngineError.sourceChanged.localizedDescription)
+                        return
+                    }
                 }
                 if let expectedLength = expected.expectedLength {
                     let actual = ((try? FileManager.default.attributesOfItem(atPath: staged.path)[.size]) as? NSNumber)?.int64Value ?? -1
@@ -567,16 +578,26 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
             rateSamples[taskID] = (sample.0, safeAccumulated)
         }
         let globalLimit = globalRateLimits[taskID] ?? 0
-        let globalDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten, limit: globalLimit)
+        let globalDelay = globalLimit > 0
+            ? await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten, limit: globalLimit)
+            : 0
         let host = hostRateLimits[taskID]
-        let hostDelay = await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten,
-            limit: host?.limit ?? 0, bucket: host?.bucket ?? "")
-        let delay = max(taskDelay, max(globalDelay, hostDelay))
+        let hostDelay: TimeInterval = if let host, host.limit > 0 {
+            await SharedGlobalRateLimiter.shared.reserve(bytes: bytesWritten, limit: host.limit, bucket: host.bucket)
+        } else { 0 }
+        let delay = min(2.0, max(taskDelay, max(globalDelay, hostDelay)))
         guard delay > 0 else { return }
         task.suspend()
-        do { try await Task.sleep(for: .seconds(delay)) }
-        catch { return }
-        guard isCurrent(taskID: taskID, generation: generation, task: task) else { return }
+        var remaining = delay
+        while remaining > 0 {
+            let slice = min(0.25, remaining)
+            do { try await Task.sleep(for: .seconds(slice)) }
+            catch { return }
+            guard isCurrent(taskID: taskID, generation: generation, task: task) else { return }
+            let currentLimitsActive = (rateLimits[taskID] ?? 0) > 0 || (globalRateLimits[taskID] ?? 0) > 0 || (hostRateLimits[taskID]?.limit ?? 0) > 0
+            if !currentLimitsActive { break }
+            remaining -= slice
+        }
         rateSamples[taskID] = (.now, 0)
         task.resume()
     }
@@ -619,10 +640,21 @@ public final class DownloadEngine: NSObject, URLSessionDownloadDelegate, @unchec
 
     private static func fileName(from value: String?) -> String? {
         guard let value else { return nil }
-        if value.lowercased().contains("filename=") {
-            let part = value.split(separator: ";").first(where: { $0.lowercased().contains("filename=") }) ?? Substring(value)
-            let raw = String(part.split(separator: "=", maxSplits: 1).last ?? "").trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
-            if !raw.isEmpty { return raw.removingPercentEncoding ?? raw }
+        let lowered = value.lowercased()
+        if lowered.contains("filename*=") || lowered.contains("filename=") {
+            let segments = value.split(separator: ";").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            if let extended = segments.first(where: { $0.lowercased().hasPrefix("filename*=") }) {
+                var raw = String(extended.dropFirst("filename*=".count)).trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
+                if let encodingRange = raw.range(of: "''") {
+                    raw = String(raw[encodingRange.upperBound...])
+                }
+                let decoded = raw.removingPercentEncoding ?? raw
+                if !decoded.isEmpty { return decoded }
+            }
+            if let plain = segments.first(where: { $0.lowercased().hasPrefix("filename=") }) {
+                let raw = String(plain.dropFirst("filename=".count)).trimmingCharacters(in: CharacterSet(charactersIn: " \"'"))
+                if !raw.isEmpty { return raw.removingPercentEncoding ?? raw }
+            }
         }
         guard let components = URLComponents(string: value) else { return nil }
         let last = components.path.split(separator: "/").last.map(String.init)
